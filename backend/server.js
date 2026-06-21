@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const Prebooking = require('./database');
 
 const app = express();
@@ -33,6 +34,24 @@ app.post('/api/prebook', async (req, res) => {
     }
     console.error('Error saving pre-booking:', err);
     res.status(500).json({ error: 'Database error occurred' });
+  }
+});
+
+// Serve frontend static files
+const frontendDistPath = path.join(__dirname, '../frontend/dist');
+app.use(express.static(frontendDistPath));
+
+// Catch-all route to serve the React app
+app.get('*all', (req, res) => {
+  const indexPath = path.join(frontendDistPath, 'index.html');
+  if (require('fs').existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(200).json({
+      status: 'active',
+      message: 'Cipertrade API is running. Frontend static files are not available on this server.',
+      info: 'If you are looking for the frontend website, check your Vercel deployment.'
+    });
   }
 });
 

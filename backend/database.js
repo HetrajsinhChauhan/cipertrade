@@ -1,11 +1,17 @@
 const mongoose = require('mongoose');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const uri = process.env.MONGODB_URI;
 
-mongoose.connect(uri)
-  .then(() => console.log('Connected to MongoDB successfully.'))
-  .catch((err) => console.error('MongoDB connection error:', err));
+if (!uri) {
+  console.error('\x1b[31m%s\x1b[0m', 'CRITICAL ERROR: MONGODB_URI environment variable is not defined!');
+  console.error('Please set the MONGODB_URI in your Render environment variables or .env file.');
+} else {
+  mongoose.connect(uri)
+    .then(() => console.log('Connected to MongoDB successfully.'))
+    .catch((err) => console.error('MongoDB connection error:', err));
+}
 
 const prebookingSchema = new mongoose.Schema({
   name: {
