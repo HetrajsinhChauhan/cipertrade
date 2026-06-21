@@ -4,13 +4,13 @@ import { useGSAP } from '@gsap/react';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Logo from './components/Logo';
 import PrebookForm from './components/PrebookForm';
-import CustomCursor from './components/CustomCursor';
 import AnimatedChart from './components/AnimatedChart';
 import Marquee from './components/Marquee';
 import ParticleWave from './components/ParticleWave';
 import NeuralOrb from './components/NeuralOrb';
 import RadarScanner from './components/RadarScanner';
 import StarField from './components/StarField';
+import ComingSoon from './components/ComingSoon';
 
 
 gsap.registerPlugin(ScrollTrigger);
@@ -22,6 +22,72 @@ function App() {
   const [openFaq, setOpenFaq] = useState(null);
   const [activeReviewIdx, setActiveReviewIdx] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalPlan, setModalPlan] = useState('annual');
+  const [modalType, setModalType] = useState('promo');
+  const [activeHeroSlide, setActiveHeroSlide] = useState(0);
+
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const heroSlides = [
+    {
+      badge: "Ciper AI Platform",
+      titleSpan1: "Automate",
+      titleSpan2: "Your Market Edge",
+      desc: "Ciper uses advanced neural networks to map out the market in real-time. Detects support/resistance zones, high-probability convergence areas, and breakouts automatically.",
+      primaryBtnText: "Explore Features",
+      primaryAction: () => scrollToSection('features'),
+      secondaryBtnText: "Join Waitlist",
+      secondaryAction: () => openPrebookModal('annual')
+    },
+    {
+      badge: "Featured Indicator",
+      titleSpan1: "Ciper TL",
+      titleSpan2: "Trend Scanner",
+      desc: "Automatically plot high-probability trend lines and identify chart pattern breakout zones in higher timeframes (H1, H4, D1).",
+      primaryBtnText: "Pre-Book Now",
+      primaryAction: () => openPrebookModal('annual'),
+      secondaryBtnText: "Learn More",
+      secondaryAction: () => scrollToSection('prebook')
+    }
+  ];
+
+  const openPrebookModal = (plan) => {
+    setModalPlan(plan || 'annual');
+    setModalType('form');
+    setIsModalOpen(true);
+  };
+
+  // Show promo modal on page start
+  useEffect(() => {
+    setIsModalOpen(true);
+    setModalType('promo');
+  }, []);
+
+  // Auto-close promo modal after 4 seconds
+  useEffect(() => {
+    if (isModalOpen && modalType === 'promo') {
+      const timer = setTimeout(() => {
+        setIsModalOpen(false);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [isModalOpen, modalType]);
+
+  // Refresh ScrollTrigger after layout settles to prevent cached calculation mismatch on mobile
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      ScrollTrigger.refresh();
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Auto rotate hero slides every 5.5s
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveHeroSlide((prev) => (prev + 1) % heroSlides.length);
+    }, 5500);
+    return () => clearInterval(timer);
+  }, []);
 
   // Shrink navbar on scroll
   useEffect(() => {
@@ -244,26 +310,31 @@ function App() {
       }
     });
 
-    // Bento section title reveal
-    gsap.from('.section-header h2', {
-      y: 40,
-      opacity: 0,
-      duration: 1,
-      ease: 'power3.out',
-      scrollTrigger: {
-        trigger: '.bento-section',
-        start: 'top 80%',
-      }
+    // Global Section Headers Scroll Reveal
+    gsap.utils.toArray('.section-header').forEach((header) => {
+      gsap.from(header.querySelectorAll('h2, p, .card-badge'), {
+        y: 45,
+        opacity: 0,
+        stagger: 0.12,
+        duration: 1.1,
+        ease: 'power3.out',
+        scrollTrigger: {
+          trigger: header,
+          start: 'top 85%'
+        }
+      });
     });
 
-    gsap.from('.section-header p', {
-      y: 30,
+    // Roadmap Cards Scroll Reveal
+    gsap.from('.roadmap-card', {
+      y: 50,
       opacity: 0,
+      stagger: 0.15,
       duration: 1,
       ease: 'power3.out',
       scrollTrigger: {
-        trigger: '.bento-section',
-        start: 'top 75%',
+        trigger: '.roadmap-section',
+        start: 'top 75%'
       }
     });
 
@@ -275,8 +346,8 @@ function App() {
       duration: 1.2,
       ease: 'power4.out',
       scrollTrigger: {
-        trigger: '.bento-grid',
-        start: 'top 85%'
+        trigger: '.bento-section',
+        start: 'top 75%'
       }
     });
 
@@ -418,7 +489,6 @@ function App() {
 
   return (
     <div ref={container} style={{ position: 'relative' }}>
-      <CustomCursor />
       <StarField />
       
       {/* Dark Background Glow Orbs */}
@@ -430,16 +500,48 @@ function App() {
 
       {/* Floating Pill Navbar */}
       <div className="navbar-wrapper">
-        <nav className={`navbar ${isScrolled ? 'scrolled' : ''}`}>
-          <Logo color="var(--primary-color)" />
-          <div className="nav-links">
-            <a href="#features" className="magnetic-element" onClick={(e) => { e.preventDefault(); scrollToSection('features'); }}>Features</a>
-            <a href="#testimonials" className="magnetic-element" onClick={(e) => { e.preventDefault(); scrollToSection('testimonials'); }}>Reviews</a>
-            <a href="#roadmap" className="magnetic-element" onClick={(e) => { e.preventDefault(); scrollToSection('roadmap'); }}>Roadmap</a>
+        <nav className={`navbar ${isScrolled ? 'scrolled' : ''} ${isMobileMenuOpen ? 'menu-open' : ''}`}>
+          <div className="navbar-header-row">
+            <Logo color="var(--primary-color)" />
+            
+            {/* Desktop Nav Links */}
+            <div className="nav-links">
+              <a href="#features" className="magnetic-element" onClick={(e) => { e.preventDefault(); scrollToSection('features'); }}>Features</a>
+              <a href="#testimonials" className="magnetic-element" onClick={(e) => { e.preventDefault(); scrollToSection('testimonials'); }}>Reviews</a>
+              <a href="#prebook" className="magnetic-element" onClick={(e) => { e.preventDefault(); scrollToSection('prebook'); }}>Pre-Book</a>
+              <a href="#roadmap" className="magnetic-element" onClick={(e) => { e.preventDefault(); scrollToSection('roadmap'); }}>Roadmap</a>
+            </div>
+
+            <div className="navbar-actions">
+              <button className="btn-primary desktop-get-started magnetic-element" style={{ padding: '0.6rem 1.5rem', fontSize: '0.9rem' }} onClick={() => openPrebookModal('annual')}>
+                Get Started
+              </button>
+
+              {/* Mobile Hamburger menu toggle button */}
+              <button 
+                className={`mobile-menu-btn ${isMobileMenuOpen ? 'open' : ''}`}
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                aria-label="Toggle menu"
+              >
+                <span className="hamburger-line"></span>
+                <span className="hamburger-line"></span>
+                <span className="hamburger-line"></span>
+              </button>
+            </div>
           </div>
-          <button className="btn-primary magnetic-element" style={{ padding: '0.6rem 1.5rem', fontSize: '0.9rem' }} onClick={() => setIsModalOpen(true)}>
-            Get Started
-          </button>
+
+          {/* Mobile dropdown panel */}
+          {isMobileMenuOpen && (
+            <div className="mobile-menu-panel animate-slide-down">
+              <a href="#features" onClick={(e) => { e.preventDefault(); setIsMobileMenuOpen(false); scrollToSection('features'); }}>Features</a>
+              <a href="#testimonials" onClick={(e) => { e.preventDefault(); setIsMobileMenuOpen(false); scrollToSection('testimonials'); }}>Reviews</a>
+              <a href="#prebook" onClick={(e) => { e.preventDefault(); setIsMobileMenuOpen(false); scrollToSection('prebook'); }}>Pre-Book</a>
+              <a href="#roadmap" onClick={(e) => { e.preventDefault(); setIsMobileMenuOpen(false); scrollToSection('roadmap'); }}>Roadmap</a>
+              <button className="btn-primary" style={{ width: '100%', marginTop: '0.5rem', padding: '0.8rem' }} onClick={() => { setIsMobileMenuOpen(false); openPrebookModal('annual'); }}>
+                Get Started
+              </button>
+            </div>
+          )}
         </nav>
       </div>
 
@@ -452,20 +554,37 @@ function App() {
           {/* Floating SVG Concentric Neural Orb */}
           <NeuralOrb />
 
-          <div className="hero-content" style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-            <h1>
-              <span>Automate</span> <br /><span className="gradient">Your Market Edge</span>
-            </h1>
-            <p>
-              Ciper uses advanced neural networks to map out the market in real-time. Detects intricate chart patterns, high probability kill zones, and draws dynamic trend lines automatically.
-            </p>
-            <div className="hero-buttons">
-              <button className="btn-primary magnetic-element" onClick={() => setIsModalOpen(true)}>
-                Secure Early Access
-              </button>
-              <button className="btn-secondary" onClick={() => scrollToSection('features')}>
-                Explore Features
-              </button>
+          <div className="hero-content-split">
+            {/* Left Column: Text Slider */}
+            <div className="hero-slider-column">
+              <div className="hero-slider-slide" key={activeHeroSlide}>
+                <div className="hero-badge">{heroSlides[activeHeroSlide].badge}</div>
+                <h1>
+                  <span>{heroSlides[activeHeroSlide].titleSpan1}</span> <br />
+                  <span className="gradient">{heroSlides[activeHeroSlide].titleSpan2}</span>
+                </h1>
+                <p>{heroSlides[activeHeroSlide].desc}</p>
+                <div className="hero-buttons">
+                  <button className="btn-primary magnetic-element" onClick={heroSlides[activeHeroSlide].primaryAction}>
+                    {heroSlides[activeHeroSlide].primaryBtnText}
+                  </button>
+                  <button className="btn-secondary" onClick={heroSlides[activeHeroSlide].secondaryAction}>
+                    {heroSlides[activeHeroSlide].secondaryBtnText}
+                  </button>
+                </div>
+              </div>
+              
+              {/* Slider Nav Dots */}
+              <div className="hero-slider-nav">
+                {heroSlides.map((_, idx) => (
+                  <button
+                    key={idx}
+                    className={`hero-slider-dot ${activeHeroSlide === idx ? 'active' : ''}`}
+                    onClick={() => setActiveHeroSlide(idx)}
+                    aria-label={`Go to slide ${idx + 1}`}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         </section>
@@ -473,6 +592,9 @@ function App() {
 
         {/* Diagonal Scrolling Marquee for dynamic look */}
         <Marquee />
+
+        {/* Coming Soon & Pricing Section */}
+        <ComingSoon onPrebook={openPrebookModal} />
 
         {/* Live Performance Stats Dashboard Section */}
         <section className="stats-dashboard-section" id="stats">
@@ -599,7 +721,7 @@ function App() {
               <div className="card-visual" style={{ minHeight: '220px' }}>
                 <div className="stat-accuracy-container">
                   <div className="radial-progress-wrapper">
-                    <svg className="radial-progress-svg">
+                    <svg className="radial-progress-svg" viewBox="0 0 140 140">
                       <circle className="radial-progress-bg" cx="70" cy="70" r="65" />
                       <circle className="radial-progress-bar" cx="70" cy="70" r="65" />
                     </svg>
@@ -665,6 +787,8 @@ function App() {
 
           </div>
         </section>
+
+
 
         {/* Testimonials Section */}
         <section className="testimonials-section" id="testimonials">
@@ -812,11 +936,72 @@ function App() {
       {/* Modal Popup Overlay */}
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className={`modal-content ${modalType === 'promo' ? 'promo-modal' : ''}`} onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setIsModalOpen(false)}>
               &times;
             </button>
-            <PrebookForm />
+            {modalType === 'promo' ? (
+              <div className="promo-container">
+                <span className="card-badge coming-soon-badge animate-pulse-glow" style={{ background: 'rgba(189, 0, 255, 0.1)', color: '#d866ff', border: '1px solid rgba(189, 0, 255, 0.3)', padding: '2px 8px', fontSize: '0.6rem', marginBottom: '0.4rem', letterSpacing: '1px' }}>COMING SOON</span>
+                <h2>Ciper TL: Auto Trend Line Generator</h2>
+                <p className="promo-subtitle">Plots high-probability trend vectors and automatically maps out chart patterns in real-time.</p>
+                
+                <div className="promo-features">
+                  <div className="promo-feature-item">
+                    <span className="feature-icon">📈</span>
+                    <div className="feature-text">
+                      <h4>Auto-Trend Lines</h4>
+                      <p>Mathematical swing pivots connected automatically on H1, H4, and D1.</p>
+                    </div>
+                  </div>
+                  <div className="promo-feature-item">
+                    <span className="feature-icon">🔍</span>
+                    <div className="feature-text">
+                      <h4>Pattern Recognition</h4>
+                      <p>Flags wedges, triangles, and channel consolidations instantly.</p>
+                    </div>
+                  </div>
+                  <div className="promo-feature-item">
+                    <span className="feature-icon">⚡</span>
+                    <div className="feature-text">
+                      <h4>Breakout Signals</h4>
+                      <p>Alerts you immediately upon volume-confirmed trend breaches.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="promo-pricing-grid">
+                  <div className="promo-price-card" onClick={() => { setModalPlan('monthly'); setModalType('form'); }}>
+                    <span className="plan-name">Monthly Special</span>
+                    <div className="price-tag">
+                      <span className="strike">₹399</span>
+                      <span className="discount">₹299</span>
+                    </div>
+                    <button className="btn-secondary select-btn" onClick={(e) => { e.stopPropagation(); setModalPlan('monthly'); setModalType('form'); }}>
+                      Pre-Book Monthly
+                    </button>
+                  </div>
+
+                  <div className="promo-price-card highlighted" onClick={() => { setModalPlan('annual'); setModalType('form'); }}>
+                    <div className="best-value-badge">Best Value</div>
+                    <span className="plan-name">Annual Special</span>
+                    <div className="price-tag">
+                      <span className="strike">₹1200</span>
+                      <span className="discount">₹999</span>
+                    </div>
+                    <button className="btn-primary select-btn" onClick={(e) => { e.stopPropagation(); setModalPlan('annual'); setModalType('form'); }}>
+                      Pre-Book Annual
+                    </button>
+                  </div>
+                </div>
+
+                <button className="promo-close-link" onClick={() => setIsModalOpen(false)}>
+                  Explore Platform First
+                </button>
+              </div>
+            ) : (
+              <PrebookForm defaultPlan={modalPlan} />
+            )}
           </div>
         </div>
       )}

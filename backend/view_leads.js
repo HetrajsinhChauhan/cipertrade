@@ -20,6 +20,7 @@ async function viewLeads() {
         email: lead.email,
         tradingView: lead.tradingView,
         phone: lead.phone,
+        plan: lead.plan || 'unspecified',
         created_at: lead.createdAt.toISOString()
       }));
       console.table(formatted);

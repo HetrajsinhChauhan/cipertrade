@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import gsap from 'gsap';
 
-export default function PrebookForm() {
-  const [formData, setFormData] = useState({ name: '', email: '', tradingViewUsername: '', phone: '' });
+export default function PrebookForm({ defaultPlan = 'annual' }) {
+  const [formData, setFormData] = useState({ name: '', email: '', tradingViewUsername: '', phone: '', plan: defaultPlan });
   const [status, setStatus] = useState({ type: '', message: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [particles, setParticles] = useState([]);
   const formRef = useRef(null);
+
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, plan: defaultPlan }));
+  }, [defaultPlan]);
 
   const triggerConfetti = () => {
     const newParticles = Array.from({ length: 35 }).map((_, i) => ({
@@ -62,7 +66,7 @@ export default function PrebookForm() {
       }
 
       setStatus({ type: 'success', message: 'Pre-booking successful! We will notify you when Ciper is ready.' });
-      setFormData({ name: '', email: '', tradingViewUsername: '', phone: '' });
+      setFormData({ name: '', email: '', tradingViewUsername: '', phone: '', plan: defaultPlan });
       triggerConfetti();
     } catch (err) {
       setStatus({ type: 'error', message: err.message });
@@ -95,6 +99,31 @@ export default function PrebookForm() {
       <h2>Secure Early Access</h2>
       <p>Join the waitlist and be the first to experience the future of AI trading.</p>
       <form onSubmit={handleSubmit}>
+        <div className="plan-selection-group">
+          <label className="group-label">Select Discount Plan</label>
+          <div className="plan-selector">
+            <button
+              type="button"
+              className={`plan-toggle-btn ${formData.plan === 'monthly' ? 'active' : ''}`}
+              onClick={() => setFormData({ ...formData, plan: 'monthly' })}
+            >
+              <span className="plan-name">Monthly Special</span>
+              <span className="plan-price">₹299/mo</span>
+              <span className="plan-strike">₹399/mo</span>
+            </button>
+            <button
+              type="button"
+              className={`plan-toggle-btn ${formData.plan === 'annual' ? 'active' : ''}`}
+              onClick={() => setFormData({ ...formData, plan: 'annual' })}
+            >
+              <span className="badge-best-value">Best Value</span>
+              <span className="plan-name">Annual Special</span>
+              <span className="plan-price">₹999/yr</span>
+              <span className="plan-strike">₹1200/yr</span>
+            </button>
+          </div>
+        </div>
+
         <div className="form-group">
           <label htmlFor="name">Full Name</label>
           <input

@@ -12,7 +12,7 @@ app.use(express.json());
 
 // API endpoint to handle pre-bookings
 app.post('/api/prebook', async (req, res) => {
-  const { name, email, tradingViewUsername, phone } = req.body;
+  const { name, email, tradingViewUsername, phone, plan } = req.body;
   
   if (!name || !email) {
     return res.status(400).json({ error: 'Name and Email are required' });
@@ -23,7 +23,8 @@ app.post('/api/prebook', async (req, res) => {
       name,
       email,
       tradingView: tradingViewUsername || '',
-      phone: phone || ''
+      phone: phone || '',
+      plan: plan || 'unspecified'
     });
     
     await newPrebook.save();

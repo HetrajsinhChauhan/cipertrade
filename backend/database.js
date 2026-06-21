@@ -36,6 +36,11 @@ const prebookingSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
+  plan: {
+    type: String,
+    enum: ['monthly', 'annual', 'unspecified'],
+    default: 'unspecified'
+  },
   createdAt: {
     type: Date,
     default: Date.now
