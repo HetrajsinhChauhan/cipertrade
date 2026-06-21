@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 require('dotenv').config();
-const Prebooking = require('./database');
+const { Prebooking } = require('./database');
 
 async function viewLeads() {
   try {

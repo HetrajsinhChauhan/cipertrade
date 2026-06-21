@@ -5,7 +5,19 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 gsap.registerPlugin(ScrollTrigger);
 
-export default function ComingSoon({ onPrebook }) {
+export default function ComingSoon({ 
+  onPrebook,
+  systemConfig = {
+    monthlyDiscountPrice: 299,
+    monthlyStrikePrice: 399,
+    annualDiscountPrice: 999,
+    annualStrikePrice: 1200,
+    indicatorMode: 'prebook'
+  },
+  referralDiscount = { code: '', discountPercent: 0, name: '' },
+  monthlyPrice = 299,
+  annualPrice = 999
+}) {
   const [selectedPlan, setSelectedPlan] = useState('annual');
   const sectionRef = useRef(null);
   const chartRef = useRef(null);
@@ -307,7 +319,11 @@ export default function ComingSoon({ onPrebook }) {
         <div className="coming-soon-pricing-row">
           <div className="pricing-cards-container centered-pricing">
             <h3>Exclusive Pre-Book Discount Pricing</h3>
-            <p>Secure early access pricing now. Subscriptions will launch at higher prices after the beta period.</p>
+            <p>
+              {referralDiscount.discountPercent > 0 
+                ? `Referral discount code "${referralDiscount.code}" applied! (${referralDiscount.discountPercent}% OFF waitlist pricing).` 
+                : 'Secure early access pricing now. Subscriptions will launch at higher prices after the beta period.'}
+            </p>
             
             <div className="pricing-cards-grid">
               {/* Monthly pricing card */}
@@ -315,14 +331,14 @@ export default function ComingSoon({ onPrebook }) {
                 className={`pricing-card-option ${selectedPlan === 'monthly' ? 'active' : ''}`}
                 onClick={() => selectPlanType('monthly')}
               >
-                <div className="pricing-badge">25% OFF</div>
+                <div className="pricing-badge">{referralDiscount.discountPercent > 0 ? `${25 + referralDiscount.discountPercent}% OFF` : '25% OFF'}</div>
                 <h4>Monthly Access</h4>
                 <div className="pricing-amount">
-                  <span className="price-strike">₹399</span>
-                  <span className="price-discount">₹299</span>
+                  <span className="price-strike">₹{systemConfig.monthlyStrikePrice}</span>
+                  <span className="price-discount">₹{monthlyPrice}</span>
                   <span className="price-period">/ month</span>
                 </div>
-                <div className="price-efficiency-tag">Only ₹10 / day</div>
+                <div className="price-efficiency-tag">Only ₹{Math.round(monthlyPrice / 30 * 10) / 10} / day</div>
                 <ul className="price-features-list">
                   <li>Full Indicator Suite</li>
                   <li>Auto Trend Line Generator</li>
@@ -334,7 +350,7 @@ export default function ComingSoon({ onPrebook }) {
                   className="btn-select-plan"
                   onClick={(e) => { e.stopPropagation(); selectPlanType('monthly'); }}
                 >
-                  Pre-Book Monthly
+                  {systemConfig.indicatorMode === 'prebook' ? 'Pre-Book Monthly' : 'Book Monthly'}
                 </button>
               </div>
 
@@ -344,14 +360,14 @@ export default function ComingSoon({ onPrebook }) {
                 onClick={() => selectPlanType('annual')}
               >
                 <div className="best-value-ribbon">BEST VALUE</div>
-                <div className="pricing-badge">17% OFF</div>
+                <div className="pricing-badge">{referralDiscount.discountPercent > 0 ? `${17 + referralDiscount.discountPercent}% OFF` : '17% OFF'}</div>
                 <h4>Annual Access</h4>
                 <div className="pricing-amount">
-                  <span className="price-strike">₹1200</span>
-                  <span className="price-discount">₹999</span>
+                  <span className="price-strike">₹{systemConfig.annualStrikePrice}</span>
+                  <span className="price-discount">₹{annualPrice}</span>
                   <span className="price-period">/ year</span>
                 </div>
-                <div className="price-efficiency-tag">Only ₹2.7 / day</div>
+                <div className="price-efficiency-tag">Only ₹{Math.round(annualPrice / 365 * 10) / 10} / day</div>
                 <ul className="price-features-list">
                   <li>Full Indicator Suite</li>
                   <li>Auto Trend Line Generator</li>
@@ -364,7 +380,7 @@ export default function ComingSoon({ onPrebook }) {
                   className="btn-select-plan"
                   onClick={(e) => { e.stopPropagation(); selectPlanType('annual'); }}
                 >
-                  Pre-Book Annual
+                  {systemConfig.indicatorMode === 'prebook' ? 'Pre-Book Annual' : 'Book Annual'}
                 </button>
               </div>
             </div>

@@ -1,7 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import gsap from 'gsap';
 
-export default function PrebookForm({ defaultPlan = 'annual' }) {
+export default function PrebookForm({ 
+  defaultPlan = 'annual',
+  systemConfig = {
+    monthlyDiscountPrice: 299,
+    monthlyStrikePrice: 399,
+    annualDiscountPrice: 999,
+    annualStrikePrice: 1200,
+    indicatorMode: 'prebook'
+  },
+  referralDiscount = { code: '', discountPercent: 0, name: '' },
+  monthlyPrice = 299,
+  annualPrice = 999
+}) {
   const [formData, setFormData] = useState({ name: '', email: '', tradingViewUsername: '', phone: '', plan: defaultPlan });
   const [status, setStatus] = useState({ type: '', message: '' });
   const [isLoading, setIsLoading] = useState(false);
@@ -56,7 +68,10 @@ export default function PrebookForm({ defaultPlan = 'annual' }) {
       const response = await fetch(`${API_URL}/api/prebook`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          refCode: sessionStorage.getItem('ciper_referral_code') || ''
+        })
       });
 
       const data = await response.json();
@@ -96,8 +111,8 @@ export default function PrebookForm({ defaultPlan = 'annual' }) {
         />
       ))}
 
-      <h2>Secure Early Access</h2>
-      <p>Join the waitlist and be the first to experience the future of AI trading.</p>
+      <h2>{systemConfig.indicatorMode === 'prebook' ? 'Secure Early Access' : 'Book Ciper Indicator Now'}</h2>
+      <p>{systemConfig.indicatorMode === 'prebook' ? 'Join the waitlist and be the first to experience the future of AI trading.' : 'Complete booking form to activate your live trading indicator license.'}</p>
       <form onSubmit={handleSubmit}>
         <div className="plan-selection-group">
           <label className="group-label">Select Discount Plan</label>
@@ -108,8 +123,8 @@ export default function PrebookForm({ defaultPlan = 'annual' }) {
               onClick={() => setFormData({ ...formData, plan: 'monthly' })}
             >
               <span className="plan-name">Monthly Special</span>
-              <span className="plan-price">₹299/mo</span>
-              <span className="plan-strike">₹399/mo</span>
+              <span className="plan-price">₹{monthlyPrice}/mo</span>
+              <span className="plan-strike">₹{systemConfig.monthlyStrikePrice}/mo</span>
             </button>
             <button
               type="button"
@@ -118,8 +133,8 @@ export default function PrebookForm({ defaultPlan = 'annual' }) {
             >
               <span className="badge-best-value">Best Value</span>
               <span className="plan-name">Annual Special</span>
-              <span className="plan-price">₹999/yr</span>
-              <span className="plan-strike">₹1200/yr</span>
+              <span className="plan-price">₹{annualPrice}/yr</span>
+              <span className="plan-strike">₹{systemConfig.annualStrikePrice}/yr</span>
             </button>
           </div>
         </div>
@@ -169,7 +184,7 @@ export default function PrebookForm({ defaultPlan = 'annual' }) {
           />
         </div>
         <button type="submit" className="btn-primary submit-btn" disabled={isLoading}>
-          {isLoading ? 'Booking...' : 'Join Waitlist'}
+          {isLoading ? 'Booking...' : (systemConfig.indicatorMode === 'prebook' ? 'Join Waitlist' : 'Book Indicator Access')}
         </button>
       </form>
       

@@ -61,8 +61,10 @@ h1, h2, h3, h4, .brand-text {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100vw;
-  height: 100vh;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
   z-index: -2;
   overflow: hidden;
   background-image: radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px);
@@ -1623,8 +1625,10 @@ footer {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100vw;
-  height: 100vh;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
   background: rgba(0, 0, 0, 0.78);
   backdrop-filter: blur(15px);
   display: flex;
@@ -3352,15 +3356,15 @@ footer {
    Indicator Promotion Modal Styles Desktop
    ========================================================================== */
 .promo-modal {
-  max-width: 300px !important;
+  max-width: 350px !important;
 }
 
 .promo-container {
   background: var(--surface-color);
   backdrop-filter: blur(25px);
   border: 1px solid var(--surface-border);
-  padding: 0.8rem 1rem;
-  border-radius: 14px;
+  padding: 1.1rem 1.2rem;
+  border-radius: 16px;
   box-shadow: var(--card-shadow);
   text-align: center;
   position: relative;
@@ -3372,17 +3376,17 @@ footer {
 }
 
 .promo-container h2 {
-  font-size: 1.05rem;
+  font-size: 1.2rem;
   font-weight: 800;
   color: #fff;
-  margin-top: 0.3rem;
-  margin-bottom: 0.15rem;
+  margin-top: 0.4rem;
+  margin-bottom: 0.2rem;
 }
 
 .promo-subtitle {
   color: var(--text-muted);
-  font-size: 0.68rem;
-  margin-bottom: 0.6rem;
+  font-size: 0.75rem;
+  margin-bottom: 0.8rem;
   max-width: 480px;
   line-height: 1.3;
 }
@@ -3390,36 +3394,36 @@ footer {
 .promo-features {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.4rem;
   width: 100%;
   text-align: left;
-  margin-bottom: 0.6rem;
+  margin-bottom: 0.8rem;
 }
 
 .promo-feature-item {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: flex-start;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.04);
-  padding: 0.3rem 0.4rem;
+  padding: 0.4rem 0.5rem;
   border-radius: 6px;
 }
 
 .promo-feature-item .feature-icon {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   flex-shrink: 0;
 }
 
 .promo-feature-item .feature-text h4 {
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   font-weight: 700;
   color: #fff;
   margin-bottom: 1px;
 }
 
 .promo-feature-item .feature-text p {
-  font-size: 0.62rem;
+  font-size: 0.68rem;
   color: var(--text-muted);
   line-height: 1.25;
 }
@@ -3427,15 +3431,15 @@ footer {
 .promo-pricing-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
-  margin-bottom: 0.6rem;
+  margin-bottom: 0.8rem;
 }
 
 .promo-price-card {
   background: rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.05);
-  padding: 0.5rem 0.3rem;
+  padding: 0.6rem 0.4rem;
   border-radius: 8px;
   display: flex;
   flex-direction: column;
@@ -3462,7 +3466,7 @@ footer {
 }
 
 .promo-price-card .plan-name {
-  font-size: 0.52rem;
+  font-size: 0.58rem;
   font-weight: 800;
   text-transform: uppercase;
   color: var(--text-light);
@@ -3482,13 +3486,13 @@ footer {
 }
 
 .promo-price-card .strike {
-  font-size: 0.62rem;
+  font-size: 0.68rem;
   text-decoration: line-through;
   color: var(--text-light);
 }
 
 .promo-price-card .discount {
-  font-size: 0.9rem;
+  font-size: 1.05rem;
   font-weight: 800;
   color: #fff;
   font-family: 'Outfit', sans-serif;
@@ -3496,8 +3500,8 @@ footer {
 
 .promo-price-card .select-btn {
   width: 100%;
-  padding: 0.25rem;
-  font-size: 0.62rem;
+  padding: 0.35rem;
+  font-size: 0.68rem;
   border-radius: 4px;
 }
 
@@ -3518,7 +3522,7 @@ footer {
   background: transparent;
   border: none;
   color: var(--text-light);
-  font-size: 0.62rem;
+  font-size: 0.68rem;
   text-decoration: underline;
   cursor: pointer;
   transition: color 0.3s ease;
@@ -3527,6 +3531,129 @@ footer {
 
 .promo-close-link:hover {
   color: #fff;
+}
+
+/* ==========================================
+   ADMIN PANEL LAYOUT (SIDEBAR & STYLING)
+   ========================================== */
+
+.admin-layout {
+  display: flex;
+  min-height: 100vh;
+  background: transparent;
+  position: relative;
+  width: 100%;
+}
+
+.admin-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  background: rgba(10, 10, 12, 0.65);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  z-index: 100;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.admin-sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 90;
+  display: none;
+}
+
+.admin-content {
+  flex-grow: 1;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  position: relative;
+  z-index: 10;
+  padding: 2.5rem 3rem;
+}
+
+.admin-mobile-header {
+  display: none;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 0.8rem 1rem;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+  border-left: 3px solid transparent;
+}
+
+.sidebar-link:hover {
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: #fff !important;
+}
+
+.sidebar-link.active {
+  background: rgba(189, 0, 255, 0.12) !important;
+  color: #fff !important;
+  border-left-color: #bd00ff !important;
+}
+
+@media (max-width: 991px) {
+  .admin-content {
+    padding: 2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    transform: translateX(-100%);
+  }
+  
+  .admin-sidebar.open {
+    transform: translateX(0);
+  }
+  
+  .admin-sidebar-overlay.visible {
+    display: block;
+  }
+  
+  .admin-content {
+    padding: 1.5rem;
+  }
+  
+  .admin-mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(10, 10, 12, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    position: sticky;
+    top: 0;
+    z-index: 80;
+  }
 }
 
 
