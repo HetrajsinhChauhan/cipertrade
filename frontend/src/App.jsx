@@ -13,7 +13,11 @@ import StarField from './components/StarField';
 import ComingSoon from './components/ComingSoon';
 import AdminPanel from './components/AdminPanel';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || (
+  window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:5000'
+    : window.location.origin
+);
 
 
 
@@ -847,6 +851,48 @@ function App() {
             <path d="M 84 50 A 55 55 0 0 1 50 105" stroke="var(--accent-blue)" strokeWidth="1.5" />
             <line x1="50" y1="5" x2="50" y2="95" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" />
             <line x1="5" y1="50" x2="95" y2="50" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" />
+          </svg>
+          <svg className="decor-element decor-left-2" viewBox="0 0 100 100" fill="none" stroke="currentColor">
+            <path d="M 15 50 L 40 30 L 70 60 L 85 40" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" />
+            <path d="M 15 50 L 30 70 L 60 40 L 85 40" stroke="rgba(255,255,255,0.03)" strokeWidth="0.5" />
+            <line x1="40" y1="30" x2="30" y2="70" stroke="rgba(255,255,255,0.04)" strokeWidth="0.5" />
+            <line x1="70" y1="60" x2="60" y2="40" stroke="rgba(255,255,255,0.04)" strokeWidth="0.5" />
+            <circle cx="15" cy="50" r="3" fill="var(--primary-color)" opacity="0.8" />
+            <circle cx="40" cy="30" r="2" fill="var(--accent-blue)" />
+            <circle cx="30" cy="70" r="2.5" fill="var(--accent-teal)" />
+            <circle cx="70" cy="60" r="3.5" fill="var(--primary-color)" />
+            <circle cx="60" cy="40" r="2" fill="var(--accent-blue)" />
+            <circle cx="85" cy="40" r="3" fill="var(--accent-teal)" opacity="0.8" />
+          </svg>
+          <svg className="decor-element decor-right-2" viewBox="0 0 100 100" fill="none" stroke="currentColor">
+            <circle cx="50" cy="50" r="40" stroke="rgba(255,255,255,0.04)" strokeWidth="0.5" strokeDasharray="3 3" />
+            <circle cx="50" cy="50" r="25" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
+            <circle cx="50" cy="50" r="8" stroke="var(--primary-color)" strokeWidth="1" opacity="0.6" />
+            <line x1="50" y1="0" x2="50" y2="100" stroke="rgba(255,255,255,0.04)" strokeWidth="0.5" />
+            <line x1="0" y1="50" x2="100" y2="50" stroke="rgba(255,255,255,0.04)" strokeWidth="0.5" />
+            <path d="M 50 15 L 50 25 M 50 75 L 50 85 M 15 50 L 25 50 M 75 50 L 85 50" stroke="var(--accent-teal)" strokeWidth="1" />
+          </svg>
+          <svg className="decor-element decor-left-3" viewBox="0 0 100 100" fill="none" stroke="currentColor">
+            <line x1="20" y1="20" x2="20" y2="80" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
+            <rect x="17" y="35" width="6" height="30" fill="var(--primary-color)" opacity="0.15" stroke="var(--primary-color)" strokeWidth="0.5" />
+            <line x1="40" y1="10" x2="40" y2="70" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
+            <rect x="37" y="20" width="6" height="40" fill="var(--accent-teal)" opacity="0.15" stroke="var(--accent-teal)" strokeWidth="0.5" />
+            <line x1="60" y1="30" x2="60" y2="90" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
+            <rect x="57" y="45" width="6" height="35" fill="var(--primary-color)" opacity="0.15" stroke="var(--primary-color)" strokeWidth="0.5" />
+            <line x1="80" y1="20" x2="80" y2="80" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
+            <rect x="77" y="30" width="6" height="30" fill="var(--accent-blue)" opacity="0.15" stroke="var(--accent-blue)" strokeWidth="0.5" />
+            <path d="M 10 50 Q 30 35 50 55 T 90 40" stroke="var(--accent-blue)" strokeWidth="1" fill="none" />
+          </svg>
+          <svg className="decor-element decor-right-3" viewBox="0 0 100 100" fill="none" stroke="currentColor">
+            <path d="M 50 15 L 80 32 L 80 67 L 50 85 L 20 67 L 20 32 Z" stroke="rgba(255,255,255,0.04)" strokeWidth="0.5" />
+            <path d="M 50 25 L 72 38 L 72 62 L 50 75 L 28 62 L 28 38 Z" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" strokeDasharray="2 2" />
+            <line x1="50" y1="15" x2="50" y2="25" stroke="var(--primary-color)" strokeWidth="0.8" />
+            <line x1="80" y1="32" x2="72" y2="38" stroke="var(--accent-blue)" strokeWidth="0.8" />
+            <line x1="80" y1="67" x2="72" y2="62" stroke="var(--accent-teal)" strokeWidth="0.8" />
+            <line x1="50" y1="85" x2="50" y2="75" stroke="var(--primary-color)" strokeWidth="0.8" />
+            <line x1="20" y1="67" x2="28" y2="62" stroke="var(--accent-blue)" strokeWidth="0.8" />
+            <line x1="20" y1="32" x2="28" y2="38" stroke="var(--accent-teal)" strokeWidth="0.8" />
+            <circle cx="50" cy="50" r="4" fill="var(--accent-blue)" opacity="0.7" />
           </svg>
 
           <div className="section-header">
