@@ -68,20 +68,24 @@ export default function StarField() {
         ctx.beginPath();
         ctx.arc(star.x, drawY, star.baseSize, 0, Math.PI * 2);
         
+        const isAdminPath = window.location.pathname === '/adminhetraj';
+        
         if (star.color === '#ffffff') {
-          ctx.fillStyle = `rgba(255, 255, 255, ${currentAlpha})`;
+          ctx.fillStyle = isAdminPath 
+            ? `rgba(30, 41, 59, ${currentAlpha})` 
+            : `rgba(255, 255, 255, ${currentAlpha})`;
           ctx.fill();
         } else if (star.color === '#bd00ff') {
           // Glow effect for neon purple stars
           ctx.fillStyle = `rgba(189, 0, 255, ${currentAlpha})`;
-          ctx.shadowBlur = 8;
+          ctx.shadowBlur = isAdminPath ? 2 : 8;
           ctx.shadowColor = '#bd00ff';
           ctx.fill();
           ctx.shadowBlur = 0; // Reset
         } else {
           // Glow effect for blue stars
           ctx.fillStyle = `rgba(0, 87, 255, ${currentAlpha})`;
-          ctx.shadowBlur = 8;
+          ctx.shadowBlur = isAdminPath ? 2 : 8;
           ctx.shadowColor = '#0057ff';
           ctx.fill();
           ctx.shadowBlur = 0; // Reset

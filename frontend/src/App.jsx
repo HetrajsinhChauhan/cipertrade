@@ -5,8 +5,8 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Logo from './components/Logo';
 import PrebookForm from './components/PrebookForm';
 import AnimatedChart from './components/AnimatedChart';
-import Marquee from './components/Marquee';
-import ParticleWave from './components/ParticleWave';
+
+
 import NeuralOrb from './components/NeuralOrb';
 import RadarScanner from './components/RadarScanner';
 import StarField from './components/StarField';
@@ -19,9 +19,173 @@ const API_URL = import.meta.env.VITE_API_URL || (
     : window.location.origin
 );
 
-
-
 gsap.registerPlugin(ScrollTrigger);
+
+function IndicatorCard({ indicator, referralDiscount, onPrebook, getMonthlyPrice, getAnnualPrice, triggerCelebration }) {
+  const [timeLeft, setTimeLeft] = useState(null);
+
+  useEffect(() => {
+    if (!indicator.countdownTargetDate) {
+      setTimeLeft(null);
+      return;
+    }
+
+    const calculateTimeLeft = () => {
+      const difference = +new Date(indicator.countdownTargetDate) - +new Date();
+      if (difference <= 0) {
+        return { expired: true };
+      }
+      return {
+        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+        minutes: Math.floor((difference / 1000 / 60) % 60),
+        seconds: Math.floor((difference / 1000) % 60)
+      };
+    };
+
+    setTimeLeft(calculateTimeLeft());
+
+    const timer = setInterval(() => {
+      const left = calculateTimeLeft();
+      setTimeLeft(left);
+      if (left && left.expired) {
+        clearInterval(timer);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [indicator.countdownTargetDate]);
+
+  const calculatedMonthly = getMonthlyPrice(indicator);
+  const calculatedAnnual = getAnnualPrice(indicator);
+
+  const renderIcon = () => {
+    switch (indicator.icon) {
+      case 'volume':
+        return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="4" height="16" rx="1"></rect><rect x="9" y="8" width="8" height="12" rx="1"></rect><rect x="19" y="11" width="2" height="9" rx="1"></rect></svg>;
+      case 'liquidity':
+        return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>;
+      case 'correlation':
+        return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="10" cy="10" r="6"></circle><circle cx="15" cy="15" r="6"></circle><path d="M10 4a6 6 0 0 1 0 12"></path></svg>;
+      case 'neural':
+        return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="6" cy="12" r="2"></circle><circle cx="14" cy="7" r="2"></circle><circle cx="14" cy="17" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="8" y1="11" x2="12" y2="8"></line><line x1="8" y1="13" x2="12" y2="16"></line><line x1="16" y1="8" x2="18" y2="11"></line><line x1="16" y1="16" x2="18" y2="13"></line></svg>;
+      case 'momentum':
+        return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12h3l3-9 4 18 3-10 3 1h3"></path></svg>;
+      case 'trend':
+      default:
+        return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="21" x2="21" y2="3"></line><circle cx="3" cy="21" r="2"></circle><circle cx="21" cy="3" r="2"></circle></svg>;
+    }
+  };
+
+  return (
+    <div className="bento-card indicator-card" style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', justifyContent: 'space-between', padding: '2rem' }}>
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <div className="card-icon-wrapper" style={{ color: 'var(--primary-color)', background: 'rgba(189, 0, 255, 0.08)', width: '42px', height: '42px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {renderIcon()}
+          </div>
+          <span className="card-badge" style={{ 
+            margin: 0, 
+            background: indicator.status.includes('Beta') ? 'rgba(16, 185, 129, 0.1)' : 'rgba(249, 115, 22, 0.1)', 
+            color: indicator.status.includes('Beta') ? '#10b981' : '#f97316',
+            border: indicator.status.includes('Beta') ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(249, 115, 22, 0.2)'
+          }}>
+            {indicator.status}
+          </span>
+        </div>
+        
+        <h3 className="card-title" style={{ fontSize: '1.6rem', marginBottom: '0.6rem' }}>{indicator.title}</h3>
+        <p className="card-description" style={{ fontSize: '0.88rem', minHeight: '60px', marginBottom: '1rem' }}>{indicator.desc}</p>
+        
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(189, 0, 255, 0.05)', border: '1px solid rgba(189, 0, 255, 0.15)', padding: '4px 10px', borderRadius: '12px', marginBottom: '1.2rem' }}>
+          <span style={{ fontSize: '0.85rem' }}>🔥</span>
+          <span style={{ fontSize: '0.78rem', color: '#e2e8f0', fontWeight: '700' }}>
+            {indicator.bookingsCount} pre-booked
+          </span>
+        </div>
+
+        <div style={{ marginBottom: '1.2rem' }}>
+          {timeLeft && !timeLeft.expired ? (
+            <div 
+              style={{
+                display: 'inline-flex',
+                gap: '8px',
+                background: 'rgba(189, 0, 255, 0.04)',
+                border: '1.5px dashed rgba(189, 0, 255, 0.25)',
+                padding: '6px 12px',
+                borderRadius: '12px',
+                alignItems: 'center',
+                cursor: 'pointer',
+                userSelect: 'none'
+              }}
+              onClick={triggerCelebration}
+            >
+              <span style={{ fontSize: '0.65rem', color: '#bd00ff', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Ends In:</span>
+              
+              <div style={{ display: 'flex', gap: '4px', fontFamily: 'monospace', fontSize: '0.9rem', fontWeight: '800', color: '#fff' }}>
+                <span>{String(timeLeft.days).padStart(2, '0')}d</span>
+                <span style={{ color: '#bd00ff' }}>:</span>
+                <span>{String(timeLeft.hours).padStart(2, '0')}h</span>
+                <span style={{ color: '#bd00ff' }}>:</span>
+                <span>{String(timeLeft.minutes).padStart(2, '0')}m</span>
+                <span style={{ color: '#bd00ff' }}>:</span>
+                <span style={{ color: '#bd00ff', textShadow: '0 0 6px rgba(189,0,255,0.4)' }}>{String(timeLeft.seconds).padStart(2, '0')}s</span>
+              </div>
+            </div>
+          ) : (
+            <div 
+              style={{
+                background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.06), rgba(249, 115, 22, 0.06))',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+                color: '#fca5a5',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 10px',
+                borderRadius: '12px',
+                fontSize: '0.72rem',
+                fontWeight: '800',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                userSelect: 'none'
+              }}
+            >
+              <span className="animate-pulse" style={{ color: '#ef4444' }}>🔴</span> Starting Soon
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '1rem', marginBottom: '1.2rem', gap: '1rem' }}>
+          <div>
+            <div style={{ fontSize: '0.65rem', color: 'var(--text-light)', textTransform: 'uppercase', fontWeight: '700' }}>Monthly Special</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginTop: '2px' }}>
+              <span style={{ textDecoration: 'line-through', fontSize: '0.8rem', color: 'var(--text-light)' }}>₹{indicator.monthlyStrikePrice}</span>
+              <span style={{ color: 'var(--success-color)', fontWeight: '800', fontSize: '1.1rem' }}>₹{calculatedMonthly}</span>
+            </div>
+          </div>
+          <div style={{ borderRight: '1px solid rgba(255,255,255,0.06)' }}></div>
+          <div>
+            <div style={{ fontSize: '0.65rem', color: 'var(--text-light)', textTransform: 'uppercase', fontWeight: '700' }}>Annual (Best Value)</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginTop: '2px' }}>
+              <span style={{ textDecoration: 'line-through', fontSize: '0.8rem', color: 'var(--text-light)' }}>₹{indicator.annualStrikePrice}</span>
+              <span style={{ color: '#bd00ff', fontWeight: '800', fontSize: '1.1rem' }}>₹{calculatedAnnual}</span>
+            </div>
+          </div>
+        </div>
+
+        <button 
+          onClick={() => onPrebook('annual', indicator)}
+          className="btn-primary" 
+          style={{ width: '100%', padding: '0.75rem', fontSize: '0.88rem', borderRadius: '16px' }}
+        >
+          Pre-Book Now
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function App() {
   const container = useRef();
@@ -47,7 +211,8 @@ function App() {
     monthlyStrikePrice: 399,
     annualDiscountPrice: 999,
     annualStrikePrice: 1200,
-    indicatorMode: 'prebook'
+    indicatorMode: 'prebook',
+    countdownTargetDate: null
   });
 
   // Referral discount tracking
@@ -56,6 +221,10 @@ function App() {
     discountPercent: 0,
     name: ''
   });
+
+  // Dynamic Indicators List
+  const [indicatorsList, setIndicatorsList] = useState([]);
+  const [selectedIndicator, setSelectedIndicator] = useState(null);
 
   // Setup routing listener
   useEffect(() => {
@@ -92,6 +261,22 @@ function App() {
     fetchConfig();
   }, []);
 
+  // Fetch indicators list from backend on mount
+  useEffect(() => {
+    const fetchIndicators = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/indicators`);
+        if (res.ok) {
+          const data = await res.json();
+          setIndicatorsList(data);
+        }
+      } catch (err) {
+        console.error('Error fetching indicators:', err);
+      }
+    };
+    fetchIndicators();
+  }, []);
+
   // Detect referral parameter ?ref=CODE from url query on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -121,24 +306,21 @@ function App() {
     }
   }, []);
 
-
-
-  const getMonthlyPrice = () => {
-    const basePrice = systemConfig.monthlyDiscountPrice;
+  const getMonthlyPrice = (indicator = null) => {
+    const basePrice = indicator ? indicator.monthlyDiscountPrice : systemConfig.monthlyDiscountPrice;
     if (referralDiscount.discountPercent > 0) {
       return Math.round(basePrice * (1 - referralDiscount.discountPercent / 100));
     }
     return basePrice;
   };
 
-  const getAnnualPrice = () => {
-    const basePrice = systemConfig.annualDiscountPrice;
+  const getAnnualPrice = (indicator = null) => {
+    const basePrice = indicator ? indicator.annualDiscountPrice : systemConfig.annualDiscountPrice;
     if (referralDiscount.discountPercent > 0) {
       return Math.round(basePrice * (1 - referralDiscount.discountPercent / 100));
     }
     return basePrice;
   };
-
 
   const heroSlides = [
     {
@@ -149,7 +331,7 @@ function App() {
       primaryBtnText: "Explore Features",
       primaryAction: () => scrollToSection('features'),
       secondaryBtnText: "Join Waitlist",
-      secondaryAction: () => openPrebookModal('annual')
+      secondaryAction: () => openPrebookModal('annual', indicatorsList[0])
     },
     {
       badge: "Featured Indicator",
@@ -157,33 +339,18 @@ function App() {
       titleSpan2: "Trend Scanner",
       desc: "Automatically plot high-probability trend lines and identify chart pattern breakout zones in higher timeframes (H1, H4, D1).",
       primaryBtnText: "Pre-Book Now",
-      primaryAction: () => openPrebookModal('annual'),
+      primaryAction: () => openPrebookModal('annual', indicatorsList[0]),
       secondaryBtnText: "Learn More",
       secondaryAction: () => scrollToSection('prebook')
     }
   ];
 
-  const openPrebookModal = (plan) => {
+  const openPrebookModal = (plan, indicator = null) => {
     setModalPlan(plan || 'annual');
+    setSelectedIndicator(indicator || indicatorsList[0] || null);
     setModalType('form');
     setIsModalOpen(true);
   };
-
-  // Show promo modal on page start
-  useEffect(() => {
-    setIsModalOpen(true);
-    setModalType('promo');
-  }, []);
-
-  // Auto-close promo modal after 4 seconds
-  useEffect(() => {
-    if (isModalOpen && modalType === 'promo') {
-      const timer = setTimeout(() => {
-        setIsModalOpen(false);
-      }, 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [isModalOpen, modalType]);
 
   // Refresh ScrollTrigger after layout settles to prevent cached calculation mismatch on mobile
   useEffect(() => {
@@ -199,7 +366,7 @@ function App() {
       setActiveHeroSlide((prev) => (prev + 1) % heroSlides.length);
     }, 5500);
     return () => clearInterval(timer);
-  }, []);
+  }, [indicatorsList]);
 
   // Shrink navbar on scroll
   useEffect(() => {
@@ -228,6 +395,104 @@ function App() {
       document.body.style.paddingRight = '';
     };
   }, [isModalOpen]);
+
+  const triggerCelebration = () => {
+    const container = document.querySelector('.hero');
+    if (!container) return;
+    
+    const colors = ['#bd00ff', '#0057ff', '#12b3b3', '#ff007f', '#ffaa00', '#00ffcc'];
+    const leftX = '48%';
+    const rightX = '52%';
+    const centerY = '18%';
+    
+    const triggerBurst = (xCoord) => {
+      for (let i = 0; i < 25; i++) {
+        const el = document.createElement('div');
+        el.className = 'celebration-spark';
+        el.style.position = 'absolute';
+        el.style.left = xCoord;
+        el.style.top = centerY;
+        el.style.width = `${Math.random() * 4 + 3}px`;
+        el.style.height = el.style.width;
+        el.style.borderRadius = '50%';
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        el.style.background = color;
+        el.style.boxShadow = `0 0 8px ${color}, 0 0 16px ${color}`;
+        el.style.pointerEvents = 'none';
+        el.style.zIndex = '100';
+        container.appendChild(el);
+        
+        const angle = Math.random() * Math.PI * 2;
+        const velocity = Math.random() * 160 + 60;
+        const dx = Math.cos(angle) * velocity;
+        const dy = Math.sin(angle) * velocity;
+        
+        gsap.fromTo(el,
+          { x: 0, y: 0, scale: 1.2, opacity: 1 },
+          {
+            x: dx,
+            y: dy + 80,
+            scale: 0.1,
+            opacity: 0,
+            duration: Math.random() * 1.0 + 0.8,
+            ease: 'power2.out',
+            onComplete: () => el.remove()
+          }
+        );
+      }
+    };
+
+    triggerBurst(leftX);
+    triggerBurst(rightX);
+  };
+
+  const [timeLeft, setTimeLeft] = useState(null);
+
+  useEffect(() => {
+    const targetDate = (indicatorsList && indicatorsList[0] && indicatorsList[0].countdownTargetDate) 
+      ? indicatorsList[0].countdownTargetDate 
+      : systemConfig.countdownTargetDate;
+
+    if (!targetDate) {
+      setTimeLeft(null);
+      return;
+    }
+
+    const calculateTimeLeft = () => {
+      const difference = +new Date(targetDate) - +new Date();
+      if (difference <= 0) {
+        return { expired: true };
+      }
+      return {
+        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+        minutes: Math.floor((difference / 1000 / 60) % 60),
+        seconds: Math.floor((difference / 1000) % 60)
+      };
+    };
+
+    setTimeLeft(calculateTimeLeft());
+
+    const timer = setInterval(() => {
+      const left = calculateTimeLeft();
+      setTimeLeft(left);
+      if (left && left.expired) {
+        clearInterval(timer);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [systemConfig.countdownTargetDate, indicatorsList]);
+
+  // Trigger initial firecracker celebration shortly after load
+  useEffect(() => {
+    if (currentPath !== '/adminhetraj') {
+      const timer = setTimeout(() => {
+        triggerCelebration();
+      }, 1200);
+      return () => clearTimeout(timer);
+    }
+  }, [currentPath]);
 
   // Route Guard for Admin Panel
   if (currentPath === '/adminhetraj') {
@@ -515,18 +780,7 @@ function App() {
       });
     });
 
-    // Roadmap Cards Scroll Reveal
-    gsap.from('.roadmap-card', {
-      y: 50,
-      opacity: 0,
-      stagger: 0.15,
-      duration: 1,
-      ease: 'power3.out',
-      scrollTrigger: {
-        trigger: '.roadmap-section',
-        start: 'top 75%'
-      }
-    });
+
 
     // Bento Cards Scroll Stagger Reveal
     gsap.from('.bento-card', {
@@ -579,15 +833,79 @@ function App() {
       }
     });
 
-    // Testimonials grid reveal
-    gsap.from('.testimonials-grid-wrapper', {
-      y: 50,
+    // Testimonials elements staggered 3D entrance reveal
+    gsap.from('.testimonials-section .testimonial-card:first-child', {
+      x: -100,
       opacity: 0,
-      duration: 1.2,
-      ease: 'power3.out',
+      duration: 1.4,
+      ease: 'power4.out',
       scrollTrigger: {
         trigger: '.testimonials-section',
         start: 'top 80%'
+      }
+    });
+    
+    gsap.from('.testimonials-section .bull-head-container', {
+      scale: 0.3,
+      opacity: 0,
+      duration: 1.5,
+      ease: 'back.out(1.4)',
+      scrollTrigger: {
+        trigger: '.testimonials-section',
+        start: 'top 80%'
+      }
+    });
+
+    gsap.from('.testimonials-section .testimonial-card:last-child', {
+      x: 100,
+      opacity: 0,
+      duration: 1.4,
+      ease: 'power4.out',
+      scrollTrigger: {
+        trigger: '.testimonials-section',
+        start: 'top 80%'
+      }
+    });
+
+    // Parallax scrolling for background glow orbs as you scroll down
+    gsap.to('.glow-orb.orb-1', {
+      y: 150,
+      scrollTrigger: {
+        trigger: 'body',
+        start: 'top top',
+        end: 'bottom bottom',
+        scrub: 1.5
+      }
+    });
+    gsap.to('.glow-orb.orb-2', {
+      y: -180,
+      scrollTrigger: {
+        trigger: 'body',
+        start: 'top top',
+        end: 'bottom bottom',
+        scrub: 1.5
+      }
+    });
+    gsap.to('.glow-orb.orb-3', {
+      y: 100,
+      scrollTrigger: {
+        trigger: 'body',
+        start: 'top top',
+        end: 'bottom bottom',
+        scrub: 1.5
+      }
+    });
+
+    // Footer entrance scroll reveal
+    gsap.from('footer .footer-brand, footer .footer-column', {
+      y: 40,
+      opacity: 0,
+      stagger: 0.12,
+      duration: 1,
+      ease: 'power3.out',
+      scrollTrigger: {
+        trigger: 'footer',
+        start: 'top 95%'
       }
     });
 
@@ -699,7 +1017,6 @@ function App() {
               <a href="#features" className="magnetic-element" onClick={(e) => { e.preventDefault(); scrollToSection('features'); }}>Features</a>
               <a href="#testimonials" className="magnetic-element" onClick={(e) => { e.preventDefault(); scrollToSection('testimonials'); }}>Reviews</a>
               <a href="#prebook" className="magnetic-element" onClick={(e) => { e.preventDefault(); scrollToSection('prebook'); }}>Pre-Book</a>
-              <a href="#roadmap" className="magnetic-element" onClick={(e) => { e.preventDefault(); scrollToSection('roadmap'); }}>Indicators</a>
             </div>
 
             <div className="navbar-actions">
@@ -726,7 +1043,6 @@ function App() {
               <a href="#features" onClick={(e) => { e.preventDefault(); setIsMobileMenuOpen(false); scrollToSection('features'); }}>Features</a>
               <a href="#testimonials" onClick={(e) => { e.preventDefault(); setIsMobileMenuOpen(false); scrollToSection('testimonials'); }}>Reviews</a>
               <a href="#prebook" onClick={(e) => { e.preventDefault(); setIsMobileMenuOpen(false); scrollToSection('prebook'); }}>Pre-Book</a>
-              <a href="#roadmap" onClick={(e) => { e.preventDefault(); setIsMobileMenuOpen(false); scrollToSection('roadmap'); }}>Indicators</a>
               <button className="btn-primary" style={{ width: '100%', marginTop: '0.5rem', padding: '0.8rem' }} onClick={() => { setIsMobileMenuOpen(false); openPrebookModal('annual'); }}>
                 Get Started
               </button>
@@ -738,8 +1054,7 @@ function App() {
       <main>
         {/* Hero Section */}
         <section className="hero" style={{ position: 'relative' }}>
-          {/* Neon Purple Wave Grid Background Canvas */}
-          <ParticleWave />
+
           
           {/* Floating SVG Concentric Neural Orb */}
           <NeuralOrb />
@@ -748,7 +1063,91 @@ function App() {
             {/* Left Column: Text Slider */}
             <div className="hero-slider-column">
               <div className="hero-slider-slide" key={activeHeroSlide}>
-                <div className="hero-badge">{heroSlides[activeHeroSlide].badge}</div>
+                {activeHeroSlide === 1 && (
+                  timeLeft && !timeLeft.expired ? (
+                    /* Active ticking countdown timer */
+                    <div 
+                      className="hero-countdown-container"
+                      style={{
+                        display: 'inline-flex',
+                        gap: '12px',
+                        marginBottom: '1.2rem',
+                        background: 'rgba(189, 0, 255, 0.06)',
+                        border: '2px dashed rgba(189, 0, 255, 0.35)',
+                        padding: '8px 18px',
+                        borderRadius: '16px',
+                        boxShadow: '0 0 20px rgba(189, 0, 255, 0.15)',
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        userSelect: 'none'
+                      }}
+                      onClick={triggerCelebration}
+                      onMouseEnter={triggerCelebration}
+                    >
+                      <span style={{ fontSize: '0.72rem', color: '#bd00ff', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '1px', marginRight: '6px' }}>💥 Launching In:</span>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff', fontFamily: 'monospace' }}>
+                          {String(timeLeft.days).padStart(2, '0')}
+                        </span>
+                        <span style={{ fontSize: '0.55rem', color: '#a78bfa', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Days</span>
+                      </div>
+                      <span style={{ color: '#bd00ff', fontWeight: '900', fontSize: '1.1rem', marginBottom: '8px' }}>:</span>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff', fontFamily: 'monospace' }}>
+                          {String(timeLeft.hours).padStart(2, '0')}
+                        </span>
+                        <span style={{ fontSize: '0.55rem', color: '#a78bfa', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Hrs</span>
+                      </div>
+                      <span style={{ color: '#bd00ff', fontWeight: '900', fontSize: '1.1rem', marginBottom: '8px' }}>:</span>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff', fontFamily: 'monospace' }}>
+                          {String(timeLeft.minutes).padStart(2, '0')}
+                        </span>
+                        <span style={{ fontSize: '0.55rem', color: '#a78bfa', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Mins</span>
+                      </div>
+                      <span style={{ color: '#bd00ff', fontWeight: '900', fontSize: '1.1rem', marginBottom: '8px' }}>:</span>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#bd00ff', fontFamily: 'monospace', textShadow: '0 0 10px rgba(189,0,255,0.4)' }}>
+                          {String(timeLeft.seconds).padStart(2, '0')}
+                        </span>
+                        <span style={{ fontSize: '0.55rem', color: '#bd00ff', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Secs</span>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Default Starting Soon Badge when no timer is set or expired */
+                    <div 
+                      className="hero-badge starting-soon-badge"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(249, 115, 22, 0.12))',
+                        border: '1px solid rgba(239, 68, 68, 0.35)',
+                        color: '#fca5a5',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '6px 14px',
+                        borderRadius: '20px',
+                        fontSize: '0.8rem',
+                        fontWeight: '800',
+                        textTransform: 'uppercase',
+                        letterSpacing: '1px',
+                        marginBottom: '1rem',
+                        boxShadow: '0 0 15px rgba(239, 68, 68, 0.15)',
+                        transition: 'all 0.3s ease',
+                        userSelect: 'none'
+                      }}
+                      onClick={triggerCelebration}
+                      onMouseEnter={triggerCelebration}
+                    >
+                      <span className="animate-pulse" style={{ color: '#ef4444' }}>🔴</span> Starting Soon
+                    </div>
+                  )
+                )}
                 <h1>
                   <span>{heroSlides[activeHeroSlide].titleSpan1}</span> <br />
                   <span className="gradient">{heroSlides[activeHeroSlide].titleSpan2}</span>
@@ -780,17 +1179,40 @@ function App() {
         </section>
 
 
-        {/* Diagonal Scrolling Marquee for dynamic look */}
-        <Marquee />
+
 
         {/* Coming Soon & Pricing Section */}
         <ComingSoon 
           onPrebook={openPrebookModal} 
           systemConfig={systemConfig}
           referralDiscount={referralDiscount}
-          monthlyPrice={getMonthlyPrice()}
-          annualPrice={getAnnualPrice()}
+          monthlyPrice={getMonthlyPrice(indicatorsList[0])}
+          annualPrice={getAnnualPrice(indicatorsList[0])}
+          indicator={indicatorsList[0]}
         />
+
+        {/* Dynamic AI Indicator Suite Grid */}
+        <section className="bento-section" id="indicator-suite" style={{ paddingTop: '2rem', paddingBottom: '4rem' }}>
+          <div className="section-header">
+            <span className="card-badge" style={{ background: 'rgba(0, 87, 255, 0.1)', color: '#60a5fa', border: '1px solid rgba(0,87,255,0.2)' }}>Suite</span>
+            <h2>Our Advanced Indicator Suite</h2>
+            <p>Explore specialized trading scripts and neural scanner tools available for immediate waitlist pre-booking.</p>
+          </div>
+          
+          <div className="bento-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', width: '100%', maxWidth: '1200px' }}>
+            {indicatorsList.map((indicator) => (
+              <IndicatorCard 
+                key={indicator._id}
+                indicator={indicator}
+                referralDiscount={referralDiscount}
+                onPrebook={openPrebookModal}
+                getMonthlyPrice={getMonthlyPrice}
+                getAnnualPrice={getAnnualPrice}
+                triggerCelebration={triggerCelebration}
+              />
+            ))}
+          </div>
+        </section>
 
         {/* Live Performance Stats Dashboard Section */}
         <section className="stats-dashboard-section" id="stats">
@@ -1073,74 +1495,7 @@ function App() {
           </div>
         </section>
 
-        {/* Roadmap / How it Works Section */}
-        <section id="roadmap" className="roadmap-section">
-          <svg className="decor-element decor-right-1" viewBox="0 0 100 100" fill="none" stroke="currentColor">
-            <circle cx="50" cy="50" r="45" stroke="rgba(255,255,255,0.03)" strokeWidth="0.5" />
-            <circle cx="50" cy="50" r="30" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" />
-            <circle cx="50" cy="50" r="15" stroke="rgba(255,255,255,0.08)" strokeWidth="0.5" />
-            <circle cx="50" cy="50" r="5" fill="var(--accent-teal)" opacity="0.4" />
-            <path d="M 50 2 L 50 8 M 50 92 L 50 98 M 2 50 L 8 50 M 92 50 L 98 50" stroke="var(--primary-color)" strokeWidth="1.2" />
-            <line x1="20" y1="20" x2="25" y2="25" stroke="rgba(255,255,255,0.15)" strokeWidth="0.8" />
-            <line x1="80" y1="80" x2="75" y2="75" stroke="rgba(255,255,255,0.15)" strokeWidth="0.8" />
-            <line x1="20" y1="80" x2="25" y2="75" stroke="rgba(255,255,255,0.15)" strokeWidth="0.8" />
-            <line x1="80" y1="20" x2="75" y2="25" stroke="rgba(255,255,255,0.15)" strokeWidth="0.8" />
-            <circle cx="50" cy="40" r="7" stroke="var(--primary-color)" strokeWidth="0.5" opacity="0.3" />
-            <circle cx="40" cy="75" r="6" stroke="var(--accent-blue)" strokeWidth="0.5" opacity="0.3" />
-            <circle cx="15" cy="20" r="3" fill="var(--accent-teal)" />
-            <circle cx="50" cy="40" r="4.5" fill="var(--primary-color)" />
-            <circle cx="85" cy="25" r="3.5" fill="var(--accent-blue)" />
-            <circle cx="40" cy="75" r="4" fill="var(--accent-blue)" />
-            <circle cx="75" cy="85" r="3" fill="var(--primary-color)" />
-          </svg>
 
-          <div className="section-header">
-            <span className="card-badge" style={{ background: 'rgba(189, 0, 255, 0.1)', color: '#bd00ff' }}>Coming Soon</span>
-            <h2>High-Powered Indicators</h2>
-            <p>Our upcoming lineup of institutional-grade neural network trading indicators, built to give you the ultimate market edge.</p>
-          </div>
-          <div className="roadmap-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
-            {indicatorReleaseList.map((indicator, idx) => (
-              <div key={idx} className="roadmap-card" style={{ position: 'relative', overflow: 'hidden' }}>
-                <div style={{
-                  position: 'absolute',
-                  top: '14px',
-                  right: '14px',
-                  background: indicator.status.includes('Beta') ? 'rgba(0, 172, 172, 0.12)' : indicator.status.includes('Dev') ? 'rgba(0, 87, 255, 0.12)' : 'rgba(255, 255, 255, 0.04)',
-                  color: indicator.status.includes('Beta') ? 'var(--primary-color)' : indicator.status.includes('Dev') ? 'var(--accent-blue)' : 'var(--text-muted)',
-                  fontSize: '0.68rem',
-                  fontWeight: 800,
-                  padding: '2px 8px',
-                  borderRadius: '12px',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px'
-                }}>
-                  {indicator.status}
-                </div>
-                
-                {/* SVG Icon container */}
-                <div style={{
-                  width: '46px',
-                  height: '46px',
-                  borderRadius: '12px',
-                  background: 'linear-gradient(135deg, rgba(189, 0, 255, 0.1), rgba(0, 87, 255, 0.1))',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: '1.2rem',
-                  color: '#bd00ff'
-                }}>
-                  {indicator.icon}
-                </div>
-                
-                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#fff', marginBottom: '0.5rem' }}>{indicator.title}</h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>{indicator.desc}</p>
-              </div>
-            ))}
-          </div>
-        </section>
 
         {/* FAQ Section Removed */}
 
@@ -1161,14 +1516,13 @@ function App() {
             <h4>Product</h4>
             <ul className="footer-links">
               <li><a href="#features">Features</a></li>
-              <li><a href="#roadmap">Indicators</a></li>
-              <li><a href="#prebook" onClick={(e) => { e.preventDefault(); setIsModalOpen(true); }}>Pre-Book</a></li>
+              <li><a href="#prebook" onClick={(e) => { e.preventDefault(); openPrebookModal('annual'); }}>Pre-Book</a></li>
             </ul>
           </div>
           <div className="footer-column">
             <h4>Resources</h4>
             <ul className="footer-links">
-              <li><a href="#prebook" onClick={(e) => { e.preventDefault(); setIsModalOpen(true); }}>Beta Access</a></li>
+              <li><a href="#prebook" onClick={(e) => { e.preventDefault(); openPrebookModal('annual'); }}>Beta Access</a></li>
               <li><a href="#testimonials" onClick={(e) => { e.preventDefault(); scrollToSection('testimonials'); }}>Documentation</a></li>
               <li><a href="https://t.me/" target="_blank" rel="noreferrer">Telegram Channel</a></li>
             </ul>
@@ -1176,9 +1530,9 @@ function App() {
           <div className="footer-column">
             <h4>Legal</h4>
             <ul className="footer-links">
-              <li><a href="#prebook" onClick={(e) => { e.preventDefault(); setIsModalOpen(true); }}>Risk Warning</a></li>
-              <li><a href="#prebook" onClick={(e) => { e.preventDefault(); setIsModalOpen(true); }}>Privacy Policy</a></li>
-              <li><a href="#prebook" onClick={(e) => { e.preventDefault(); setIsModalOpen(true); }}>Terms of Service</a></li>
+              <li><a href="#prebook" onClick={(e) => { e.preventDefault(); openPrebookModal('annual'); }}>Risk Warning</a></li>
+              <li><a href="#prebook" onClick={(e) => { e.preventDefault(); openPrebookModal('annual'); }}>Privacy Policy</a></li>
+              <li><a href="#prebook" onClick={(e) => { e.preventDefault(); openPrebookModal('annual'); }}>Terms of Service</a></li>
             </ul>
           </div>
         </div>
@@ -1202,9 +1556,9 @@ function App() {
             </button>
             {modalType === 'promo' ? (
               <div className="promo-container">
-                <span className="card-badge coming-soon-badge animate-pulse-glow" style={{ background: 'rgba(189, 0, 255, 0.1)', color: '#d866ff', border: '1px solid rgba(189, 0, 255, 0.3)', padding: '2px 8px', fontSize: '0.6rem', marginBottom: '0.4rem', letterSpacing: '1px' }}>COMING SOON</span>
-                <h2>Ciper TL: Auto Trend Line Generator</h2>
-                <p className="promo-subtitle">Plots high-probability trend vectors and automatically maps out chart patterns in real-time.</p>
+                <span className="card-badge coming-soon-badge animate-pulse-glow" style={{ background: 'rgba(189, 0, 255, 0.1)', color: '#d866ff', border: '1px solid rgba(189, 0, 255, 0.3)', padding: '2px 8px', fontSize: '0.6rem', marginBottom: '0.4rem', letterSpacing: '1px' }}>{selectedIndicator ? selectedIndicator.status.toUpperCase() : 'COMING SOON'}</span>
+                <h2>{selectedIndicator ? selectedIndicator.title : 'Ciper TL: Auto Trend Line Generator'}</h2>
+                <p className="promo-subtitle">{selectedIndicator ? selectedIndicator.desc : 'Plots high-probability trend vectors and automatically maps out chart patterns in real-time.'}</p>
                 
                 <div className="promo-features">
                   <div className="promo-feature-item">
@@ -1234,8 +1588,8 @@ function App() {
                   <div className="promo-price-card" onClick={() => { setModalPlan('monthly'); setModalType('form'); }}>
                     <span className="plan-name">Monthly Special</span>
                     <div className="price-tag">
-                      <span className="strike">₹{systemConfig.monthlyStrikePrice}</span>
-                      <span className="discount">₹{getMonthlyPrice()}</span>
+                      <span className="strike">₹{selectedIndicator ? selectedIndicator.monthlyStrikePrice : systemConfig.monthlyStrikePrice}</span>
+                      <span className="discount">₹{getMonthlyPrice(selectedIndicator)}</span>
                     </div>
                     <button className="btn-secondary select-btn" onClick={(e) => { e.stopPropagation(); setModalPlan('monthly'); setModalType('form'); }}>
                       {systemConfig.indicatorMode === 'prebook' ? 'Pre-Book Monthly' : 'Book Monthly'}
@@ -1246,8 +1600,8 @@ function App() {
                     <div className="best-value-badge">Best Value</div>
                     <span className="plan-name">Annual Special</span>
                     <div className="price-tag">
-                      <span className="strike">₹{systemConfig.annualStrikePrice}</span>
-                      <span className="discount">₹{getAnnualPrice()}</span>
+                      <span className="strike">₹{selectedIndicator ? selectedIndicator.annualStrikePrice : systemConfig.annualStrikePrice}</span>
+                      <span className="discount">₹{getAnnualPrice(selectedIndicator)}</span>
                     </div>
                     <button className="btn-primary select-btn" onClick={(e) => { e.stopPropagation(); setModalPlan('annual'); setModalType('form'); }}>
                       {systemConfig.indicatorMode === 'prebook' ? 'Pre-Book Annual' : 'Book Annual'}
@@ -1264,8 +1618,9 @@ function App() {
                 defaultPlan={modalPlan}
                 systemConfig={systemConfig}
                 referralDiscount={referralDiscount}
-                monthlyPrice={getMonthlyPrice()}
-                annualPrice={getAnnualPrice()}
+                monthlyPrice={getMonthlyPrice(selectedIndicator)}
+                annualPrice={getAnnualPrice(selectedIndicator)}
+                selectedIndicator={selectedIndicator}
               />
             )}
           </div>

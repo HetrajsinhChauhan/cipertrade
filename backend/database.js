@@ -60,6 +60,10 @@ const prebookingSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  indicatorTitle: {
+    type: String,
+    default: 'General'
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -94,6 +98,10 @@ const configSchema = new mongoose.Schema({
     type: String,
     enum: ['prebook', 'booknow'],
     default: 'prebook'
+  },
+  countdownTargetDate: {
+    type: Date,
+    default: null
   }
 });
 
@@ -128,9 +136,78 @@ const referralSchema = new mongoose.Schema({
   }
 });
 
+const adminSchema = new mongoose.Schema({
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    lowercase: true,
+    trim: true
+  },
+  password: {
+    type: String,
+    required: true
+  },
+  pin: {
+    type: String,
+    default: '1920062715'
+  }
+});
+
+const indicatorSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  desc: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  status: {
+    type: String,
+    default: 'Coming Soon'
+  },
+  monthlyStrikePrice: {
+    type: Number,
+    default: 399
+  },
+  monthlyDiscountPrice: {
+    type: Number,
+    default: 299
+  },
+  annualStrikePrice: {
+    type: Number,
+    default: 1200
+  },
+  annualDiscountPrice: {
+    type: Number,
+    default: 999
+  },
+  countdownTargetDate: {
+    type: Date,
+    default: null
+  },
+  bookingsCount: {
+    type: Number,
+    default: 0
+  },
+  icon: {
+    type: String,
+    default: 'trend'
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
 const Prebooking = mongoose.model('Prebooking', prebookingSchema);
 const Config = mongoose.model('Config', configSchema);
 const Referral = mongoose.model('Referral', referralSchema);
+const Admin = mongoose.model('Admin', adminSchema);
+const Indicator = mongoose.model('Indicator', indicatorSchema);
 
 // Setup default configuration if not exists helper
 async function ensureDefaultConfig() {
@@ -146,11 +223,59 @@ async function ensureDefaultConfig() {
   }
 }
 
+// Seeding default indicators on startup
+async function ensureDefaultIndicators() {
+  try {
+    const count = await Indicator.countDocuments();
+    if (count === 0) {
+      const defaultIndicators = [
+        {
+          title: "Ciper TL (Trend Line)",
+          desc: "Plots high-probability trend lines and automatically highlights chart pattern breakout vectors in H1/H4 timeframes.",
+          status: "Beta Testing",
+          icon: "trend",
+          monthlyStrikePrice: 399,
+          monthlyDiscountPrice: 299,
+          annualStrikePrice: 1200,
+          annualDiscountPrice: 999
+        },
+        {
+          title: "Ciper Volume Profile",
+          desc: "Visualizes institutional volume distribution, Point of Control (POC), and high-volume nodes directly on your Y-axis.",
+          status: "Coming Soon",
+          icon: "volume",
+          monthlyStrikePrice: 399,
+          monthlyDiscountPrice: 299,
+          annualStrikePrice: 1200,
+          annualDiscountPrice: 999
+        },
+        {
+          title: "Ciper Liquidity Grab",
+          desc: "Tracks retail stop-loss clusters and alerts you to potential stop-hunts and manipulation zones prior to major market pivots.",
+          status: "Coming Soon",
+          icon: "liquidity",
+          monthlyStrikePrice: 399,
+          monthlyDiscountPrice: 299,
+          annualStrikePrice: 1200,
+          annualDiscountPrice: 999
+        }
+      ];
+      await Indicator.insertMany(defaultIndicators);
+      console.log('Default indicators seeded successfully.');
+    }
+  } catch (err) {
+    console.error('Error seeding default indicators:', err);
+  }
+}
+
 // Check connection to run config initialization
 mongoose.connection.on('connected', () => {
-  setTimeout(ensureDefaultConfig, 500);
+  setTimeout(() => {
+    ensureDefaultConfig();
+    ensureDefaultIndicators();
+  }, 500);
 });
 
-module.exports = { Prebooking, Config, Referral };
+module.exports = { Prebooking, Config, Referral, Admin, Indicator };
 
 

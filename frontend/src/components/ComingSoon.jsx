@@ -16,7 +16,8 @@ export default function ComingSoon({
   },
   referralDiscount = { code: '', discountPercent: 0, name: '' },
   monthlyPrice = 299,
-  annualPrice = 999
+  annualPrice = 999,
+  indicator = null
 }) {
   const [selectedPlan, setSelectedPlan] = useState('annual');
   const sectionRef = useRef(null);
@@ -125,7 +126,7 @@ export default function ComingSoon({
   const selectPlanType = (plan) => {
     setSelectedPlan(plan);
     if (onPrebook) {
-      onPrebook(plan);
+      onPrebook(plan, indicator);
     }
   };
 
@@ -147,9 +148,9 @@ export default function ComingSoon({
   return (
     <section className="coming-soon-section" id="prebook" ref={sectionRef}>
       <div className="section-header">
-        <div className="card-badge coming-soon-badge">INDICATOR COMING SOON</div>
-        <h2>Auto Trend Line Generator</h2>
-        <p>Unlock high-probability trend lines and automatic chart pattern detection directly inside your charting interface.</p>
+        <div className="card-badge coming-soon-badge">{indicator ? `INDICATOR ${indicator.status.toUpperCase()}` : 'INDICATOR COMING SOON'}</div>
+        <h2>{indicator ? indicator.title : "Auto Trend Line Generator"}</h2>
+        <p>{indicator ? indicator.desc : "Unlock high-probability trend lines and automatic chart pattern detection directly inside your charting interface."}</p>
       </div>
 
       <div className="coming-soon-container vertical-stack">
@@ -334,7 +335,7 @@ export default function ComingSoon({
                 <div className="pricing-badge">{referralDiscount.discountPercent > 0 ? `${25 + referralDiscount.discountPercent}% OFF` : '25% OFF'}</div>
                 <h4>Monthly Access</h4>
                 <div className="pricing-amount">
-                  <span className="price-strike">₹{systemConfig.monthlyStrikePrice}</span>
+                  <span className="price-strike">₹{indicator ? indicator.monthlyStrikePrice : systemConfig.monthlyStrikePrice}</span>
                   <span className="price-discount">₹{monthlyPrice}</span>
                   <span className="price-period">/ month</span>
                 </div>
@@ -363,7 +364,7 @@ export default function ComingSoon({
                 <div className="pricing-badge">{referralDiscount.discountPercent > 0 ? `${17 + referralDiscount.discountPercent}% OFF` : '17% OFF'}</div>
                 <h4>Annual Access</h4>
                 <div className="pricing-amount">
-                  <span className="price-strike">₹{systemConfig.annualStrikePrice}</span>
+                  <span className="price-strike">₹{indicator ? indicator.annualStrikePrice : systemConfig.annualStrikePrice}</span>
                   <span className="price-discount">₹{annualPrice}</span>
                   <span className="price-period">/ year</span>
                 </div>

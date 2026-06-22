@@ -3,8 +3,22 @@ const cors = require('cors');
 const path = require('path');
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
-const { Prebooking, Config, Referral } = require('./database');
+const { Prebooking, Config, Referral, Admin, Indicator } = require('./database');
+
+// Helper to hash passwords using SHA-256
+function hashPassword(password) {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+// Helper to verify passwords (supports SHA-256 hash or plain text fallback)
+function verifyPassword(inputPassword, storedPassword) {
+  if (storedPassword && storedPassword.length === 64) {
+    return hashPassword(inputPassword) === storedPassword;
+  }
+  return inputPassword === storedPassword;
+}
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -14,6 +28,13 @@ app.use(express.json());
 
 // Global memory for OTP
 let tempOtpStore = {
+  email: null,
+  code: null,
+  expiresAt: null
+};
+
+// Global memory for profile update OTP
+let tempProfileOtpStore = {
   email: null,
   code: null,
   expiresAt: null
@@ -162,7 +183,7 @@ app.get('/api/config', async (req, res) => {
 });
 
 app.post('/api/config', adminAuth, async (req, res) => {
-  const { monthlyDiscountPrice, monthlyStrikePrice, annualDiscountPrice, annualStrikePrice, indicatorMode } = req.body;
+  const { monthlyDiscountPrice, monthlyStrikePrice, annualDiscountPrice, annualStrikePrice, indicatorMode, countdownTargetDate } = req.body;
   try {
     let config = await Config.findOne({ key: 'system_settings' });
     if (!config) {
@@ -173,6 +194,9 @@ app.post('/api/config', adminAuth, async (req, res) => {
     if (annualDiscountPrice !== undefined) config.annualDiscountPrice = Number(annualDiscountPrice);
     if (annualStrikePrice !== undefined) config.annualStrikePrice = Number(annualStrikePrice);
     if (indicatorMode !== undefined) config.indicatorMode = indicatorMode;
+    if (countdownTargetDate !== undefined) {
+      config.countdownTargetDate = countdownTargetDate ? new Date(countdownTargetDate) : null;
+    }
     
     await config.save();
     res.json({ message: 'Settings saved successfully', config });
@@ -188,13 +212,45 @@ app.post('/api/admin/login', async (req, res) => {
   const normalizedEmail = email ? email.toLowerCase().trim() : '';
   const normalizedPassword = password ? password.trim() : '';
 
-  // Get allowed admin emails and password from environment config
-  const allowedEmails = (process.env.ADMIN_EMAIL || 'hetrajchauahan@gmail.com,hetrajchauhan@gmail.com')
-    .split(',')
-    .map(e => e.trim().toLowerCase());
-  const adminPassword = process.env.ADMIN_PASSWORD || 'Hetraj@1920062715';
+  let authenticated = false;
+  try {
+    const dbAdmin = await Admin.findOne({});
+    if (dbAdmin) {
+      if (dbAdmin.email === normalizedEmail && verifyPassword(normalizedPassword, dbAdmin.password)) {
+        authenticated = true;
+      }
+    } else {
+      const allowedEmails = (process.env.ADMIN_EMAIL || 'hetrajchauahan@gmail.com,hetrajchauhan@gmail.com')
+        .split(',')
+        .map(e => e.trim().toLowerCase());
+      const adminPassword = process.env.ADMIN_PASSWORD || 'Hetraj@1920062715';
+      if (allowedEmails.includes(normalizedEmail) && verifyPassword(normalizedPassword, adminPassword)) {
+        authenticated = true;
+        // Dynamically save hashed admin details to the database to secure it for subsequent access
+        try {
+          const newDbAdmin = new Admin({
+            email: normalizedEmail,
+            password: hashPassword(normalizedPassword)
+          });
+          await newDbAdmin.save();
+          console.log('[SECURITY] Admin document created and initialized with hashed credentials.');
+        } catch (saveErr) {
+          console.error('[SECURITY ERROR] Failed to dynamically seed admin document:', saveErr);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Database query during login failed, falling back to env defaults:', err);
+    const allowedEmails = (process.env.ADMIN_EMAIL || 'hetrajchauahan@gmail.com,hetrajchauhan@gmail.com')
+      .split(',')
+      .map(e => e.trim().toLowerCase());
+    const adminPassword = process.env.ADMIN_PASSWORD || 'Hetraj@1920062715';
+    if (allowedEmails.includes(normalizedEmail) && verifyPassword(normalizedPassword, adminPassword)) {
+      authenticated = true;
+    }
+  }
 
-  if (allowedEmails.includes(normalizedEmail) && normalizedPassword === adminPassword) {
+  if (authenticated) {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     tempOtpStore = {
       email: normalizedEmail,
@@ -202,11 +258,7 @@ app.post('/api/admin/login', async (req, res) => {
       expiresAt: Date.now() + 5 * 60 * 1000 // 5 mins expiry
     };
     
-    console.log('\n======================================================');
-    console.log('   [ADMIN OTP SECURE KEY GENERATED]                 ');
-    console.log(`   OTP CODE: ${otp}                                 `);
-    console.log('   Valid for 5 minutes.                             ');
-    console.log('======================================================\n');
+    // OTP logs in the console have been removed for security.
     
     const text = `Your Admin Security OTP is ${otp}. Valid for 5 minutes.`;
     const html = `<h3>Ciper Admin Authentication</h3><p>Your Security OTP is <strong>${otp}</strong>. Valid for 5 minutes.</p>`;
@@ -230,18 +282,145 @@ app.post('/api/admin/verify-otp', (req, res) => {
     const targetEmail = isMasterOtp ? 'hetrajchauhan@gmail.com' : tempOtpStore.email;
     const jwtSecret = process.env.JWT_SECRET || 'ciper_admin_jwt_secret_secure_key_2026_987654';
     
-    // Sign a secure JWT session token
+    // Sign a temporary pre-auth JWT session token (valid for 15 minutes)
     const token = jwt.sign(
-      { email: targetEmail, role: 'admin' },
+      { email: targetEmail, role: 'pre-auth' },
       jwtSecret,
-      { expiresIn: '24h' }
+      { expiresIn: '15m' }
     );
     
     tempOtpStore = { email: null, code: null, expiresAt: null }; // clear after use
-    return res.json({ token });
+    return res.json({ token, step: 'pin' });
   }
   
   res.status(401).json({ error: 'Invalid or expired OTP' });
+});
+
+// 3.0.5 Admin Auth PIN verification
+app.post('/api/admin/verify-pin', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Pre-authorization token required' });
+  }
+  const preAuthToken = authHeader.split(' ')[1];
+  const jwtSecret = process.env.JWT_SECRET || 'ciper_admin_jwt_secret_secure_key_2026_987654';
+
+  try {
+    const decoded = jwt.verify(preAuthToken, jwtSecret);
+    if (decoded.role !== 'pre-auth') {
+      return res.status(403).json({ error: 'Invalid authentication state' });
+    }
+
+    const { pin } = req.body;
+    if (!pin) {
+      return res.status(400).json({ error: 'PIN is required' });
+    }
+
+    // Match with correct pin (database value with env fallback)
+    let correctPin = '1920062715';
+    try {
+      const dbAdmin = await Admin.findOne({});
+      if (dbAdmin && dbAdmin.pin) {
+        correctPin = dbAdmin.pin;
+      } else {
+        correctPin = process.env.ADMIN_PIN || '1920062715';
+      }
+    } catch (dbErr) {
+      console.error('Database query for admin pin failed, using fallback:', dbErr);
+      correctPin = process.env.ADMIN_PIN || '1920062715';
+    }
+
+    if (pin.trim() === correctPin.trim()) {
+      // Sign final full admin session token
+      const token = jwt.sign(
+        { email: decoded.email, role: 'admin' },
+        jwtSecret,
+        { expiresIn: '24h' }
+      );
+      return res.json({ token });
+    } else {
+      return res.status(401).json({ error: 'Invalid security PIN code' });
+    }
+  } catch (err) {
+    return res.status(401).json({ error: 'Session expired or invalid state. Please log in again.' });
+  }
+});
+
+// 3.1 Admin Profile OTP request
+app.post('/api/admin/profile/request-otp', adminAuth, async (req, res) => {
+  const currentEmail = req.admin.email;
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  
+  tempProfileOtpStore = {
+    email: currentEmail,
+    code: otp,
+    expiresAt: Date.now() + 5 * 60 * 1000 // 5 mins expiry
+  };
+
+  // OTP logs in the console have been removed for security.
+
+  const text = `Your Your Ciper Admin Profile Update OTP is ${otp}. Valid for 5 minutes.`;
+  const html = `<h3>Ciper Admin Profile Update</h3><p>Your Security OTP is <strong>${otp}</strong>. It is required to change your admin login credentials.</p><p>Valid for 5 minutes.</p>`;
+  
+  const success = await sendMailHelper(currentEmail, 'Ciper Admin Profile Security OTP', text, html);
+  
+  if (success) {
+    res.json({ success: true, message: 'Security OTP sent to your registered email' });
+  } else {
+    res.status(500).json({ error: 'Failed to send OTP email. Check server configuration.' });
+  }
+});
+
+// 3.2 Admin Profile Update Confirm
+app.post('/api/admin/profile/update', adminAuth, async (req, res) => {
+  const { newEmail, newPassword, newPin, otp } = req.body;
+  const currentEmail = req.admin.email;
+
+  if (!otp) {
+    return res.status(400).json({ error: 'OTP is required' });
+  }
+
+  // Validate OTP
+  if (tempProfileOtpStore.email !== currentEmail || tempProfileOtpStore.code !== otp || Date.now() >= tempProfileOtpStore.expiresAt) {
+    return res.status(401).json({ error: 'Invalid or expired OTP' });
+  }
+
+  try {
+    // Find or create admin document
+    let admin = await Admin.findOne({});
+    if (!admin) {
+      const fallbackPass = process.env.ADMIN_PASSWORD || 'Hetraj@1920062715';
+      admin = new Admin({ email: currentEmail, password: hashPassword(fallbackPass) });
+    }
+
+    if (newEmail && newEmail.trim() !== '') {
+      admin.email = newEmail.toLowerCase().trim();
+    }
+    if (newPassword && newPassword.trim() !== '') {
+      admin.password = hashPassword(newPassword.trim());
+    }
+    if (newPin && newPin.trim() !== '') {
+      admin.pin = newPin.trim();
+    }
+
+    await admin.save();
+    
+    // Clear OTP store
+    tempProfileOtpStore = { email: null, code: null, expiresAt: null };
+
+    // Sign a fresh JWT session token so the frontend stays authenticated
+    const jwtSecret = process.env.JWT_SECRET || 'ciper_admin_jwt_secret_secure_key_2026_987654';
+    const token = jwt.sign(
+      { email: admin.email, role: 'admin' },
+      jwtSecret,
+      { expiresIn: '24h' }
+    );
+
+    res.json({ success: true, message: 'Profile updated successfully', token });
+  } catch (err) {
+    console.error('Error updating admin profile:', err);
+    res.status(500).json({ error: 'Database error updating profile' });
+  }
 });
 
 // 4. Leads dashboard data fetch
@@ -341,6 +520,94 @@ app.post('/api/admin/leads/:id/simulate-expiry', adminAuth, async (req, res) => 
   }
 });
 
+// 5.5 Indicators Management APIs
+app.get('/api/indicators', async (req, res) => {
+  try {
+    const indicators = await Indicator.find({}).sort({ createdAt: 1 });
+    res.json(indicators);
+  } catch (err) {
+    console.error('Error fetching indicators:', err);
+    res.status(500).json({ error: 'Database error fetching indicators' });
+  }
+});
+
+app.get('/api/admin/indicators', adminAuth, async (req, res) => {
+  try {
+    const indicators = await Indicator.find({}).sort({ createdAt: -1 });
+    res.json(indicators);
+  } catch (err) {
+    console.error('Error fetching admin indicators:', err);
+    res.status(500).json({ error: 'Database error fetching indicators' });
+  }
+});
+
+app.post('/api/admin/indicators', adminAuth, async (req, res) => {
+  const { title, desc, status, monthlyStrikePrice, monthlyDiscountPrice, annualStrikePrice, annualDiscountPrice, countdownTargetDate, icon } = req.body;
+  if (!title || !desc) {
+    return res.status(400).json({ error: 'Title and Description are required' });
+  }
+  try {
+    const newIndicator = new Indicator({
+      title,
+      desc,
+      status: status || 'Coming Soon',
+      monthlyStrikePrice: monthlyStrikePrice !== undefined ? Number(monthlyStrikePrice) : 399,
+      monthlyDiscountPrice: monthlyDiscountPrice !== undefined ? Number(monthlyDiscountPrice) : 299,
+      annualStrikePrice: annualStrikePrice !== undefined ? Number(annualStrikePrice) : 1200,
+      annualDiscountPrice: annualDiscountPrice !== undefined ? Number(annualDiscountPrice) : 999,
+      countdownTargetDate: countdownTargetDate ? new Date(countdownTargetDate) : null,
+      icon: icon || 'trend'
+    });
+    await newIndicator.save();
+    res.status(201).json({ message: 'Indicator created successfully', indicator: newIndicator });
+  } catch (err) {
+    console.error('Error creating indicator:', err);
+    res.status(500).json({ error: 'Database error creating indicator' });
+  }
+});
+
+app.put('/api/admin/indicators/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  const { title, desc, status, monthlyStrikePrice, monthlyDiscountPrice, annualStrikePrice, annualDiscountPrice, countdownTargetDate, icon } = req.body;
+  try {
+    const indicator = await Indicator.findById(id);
+    if (!indicator) {
+      return res.status(404).json({ error: 'Indicator not found' });
+    }
+    if (title !== undefined) indicator.title = title;
+    if (desc !== undefined) indicator.desc = desc;
+    if (status !== undefined) indicator.status = status;
+    if (monthlyStrikePrice !== undefined) indicator.monthlyStrikePrice = Number(monthlyStrikePrice);
+    if (monthlyDiscountPrice !== undefined) indicator.monthlyDiscountPrice = Number(monthlyDiscountPrice);
+    if (annualStrikePrice !== undefined) indicator.annualStrikePrice = Number(annualStrikePrice);
+    if (annualDiscountPrice !== undefined) indicator.annualDiscountPrice = Number(annualDiscountPrice);
+    if (countdownTargetDate !== undefined) {
+      indicator.countdownTargetDate = countdownTargetDate ? new Date(countdownTargetDate) : null;
+    }
+    if (icon !== undefined) indicator.icon = icon;
+    
+    await indicator.save();
+    res.json({ message: 'Indicator updated successfully', indicator });
+  } catch (err) {
+    console.error('Error updating indicator:', err);
+    res.status(500).json({ error: 'Database error updating indicator' });
+  }
+});
+
+app.delete('/api/admin/indicators/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const indicator = await Indicator.findByIdAndDelete(id);
+    if (!indicator) {
+      return res.status(404).json({ error: 'Indicator not found' });
+    }
+    res.json({ message: 'Indicator deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting indicator:', err);
+    res.status(500).json({ error: 'Database error deleting indicator' });
+  }
+});
+
 // 6. Referral performance stats
 app.get('/api/admin/referrals', adminAuth, async (req, res) => {
   try {
@@ -401,20 +668,22 @@ app.post('/api/referrals/click', async (req, res) => {
 
 // 9. Modified Waitlist Pre-booking
 app.post('/api/prebook', async (req, res) => {
-  const { name, email, tradingViewUsername, phone, plan, refCode } = req.body;
+  const { name, email, tradingViewUsername, phone, plan, refCode, indicatorTitle } = req.body;
   
   if (!name || !email) {
     return res.status(400).json({ error: 'Name and Email are required' });
   }
 
   try {
+    const selectedTitle = indicatorTitle || 'General';
     const newPrebook = new Prebooking({
       name,
       email,
       tradingView: tradingViewUsername || '',
       phone: phone || '',
       plan: plan || 'unspecified',
-      refCode: refCode || ''
+      refCode: refCode || '',
+      indicatorTitle: selectedTitle
     });
     
     await newPrebook.save();
@@ -428,15 +697,22 @@ app.post('/api/prebook', async (req, res) => {
       }
     }
 
+    // Increment bookingsCount for indicator if title matches
+    const ind = await Indicator.findOne({ title: selectedTitle });
+    if (ind) {
+      ind.bookingsCount += 1;
+      await ind.save();
+    }
+
     // Send pre-booking confirmation email via Mailjet REST API
-    const subject = 'Your Ciper AI Pre-Booking is Confirmed! ⚡';
-    const text = `Hello ${name},\n\nYour pre-booking is now complete! We will email you when the indicators are ready. We will also reply to you on WhatsApp.\n\nThank you,\nCiper AI Team`;
+    const subject = `Congratulations! Your Ciper AI Pre-Booking for ${selectedTitle} is Confirmed! 🎉`;
+    const text = `Hello ${name},\n\nCongratulations! Your pre-booking for ${selectedTitle} is confirmed! Our team will inform you as soon as this indicator is ready. We will also reach out to you on WhatsApp.\n\nThank you,\nCiper AI Team`;
     const html = `
       <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; background-color: #0b0c10; color: #c5c6c7; border: 1px solid #1f2833; border-radius: 12px;">
-        <h2 style="color: #66fcf1; border-bottom: 1px solid #1f2833; padding-bottom: 12px; margin-top: 0;">Pre-Booking Confirmed!</h2>
+        <h2 style="color: #66fcf1; border-bottom: 1px solid #1f2833; padding-bottom: 12px; margin-top: 0;">Congratulations! 🎉</h2>
         <p>Hello <strong>${name}</strong>,</p>
-        <p>Your pre-booking is now complete! We will email you when the indicators are ready.</p>
-        <p>We will also reply to you on WhatsApp to share updates and next steps.</p>
+        <p>Your pre-booking for <strong>${selectedTitle}</strong> is confirmed!</p>
+        <p>Our team will inform you as soon as this indicator is ready. We will also reach out to you on WhatsApp to share updates and next steps.</p>
         <br/>
         <p style="color: #66fcf1; font-weight: bold; margin-bottom: 5px;">Thank you,</p>
         <p style="color: #45f3ff; font-weight: bold; margin-top: 0;">Ciper AI Team</p>

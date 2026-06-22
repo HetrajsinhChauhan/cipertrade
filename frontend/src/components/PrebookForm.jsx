@@ -12,7 +12,8 @@ export default function PrebookForm({
   },
   referralDiscount = { code: '', discountPercent: 0, name: '' },
   monthlyPrice = 299,
-  annualPrice = 999
+  annualPrice = 999,
+  selectedIndicator = null
 }) {
   const [formData, setFormData] = useState({ name: '', email: '', tradingViewUsername: '', phone: '', plan: defaultPlan });
   const [status, setStatus] = useState({ type: '', message: '' });
@@ -74,6 +75,7 @@ export default function PrebookForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
+          indicatorTitle: selectedIndicator ? selectedIndicator.title : 'General',
           refCode: sessionStorage.getItem('ciper_referral_code') || ''
         })
       });
@@ -115,8 +117,12 @@ export default function PrebookForm({
         />
       ))}
 
-      <h2>{systemConfig.indicatorMode === 'prebook' ? 'Secure Early Access' : 'Book Ciper Indicator Now'}</h2>
-      <p>{systemConfig.indicatorMode === 'prebook' ? 'Join the waitlist and be the first to experience the future of AI trading.' : 'Complete booking form to activate your live trading indicator license.'}</p>
+      <h2>{selectedIndicator ? `Pre-Book ${selectedIndicator.title}` : (systemConfig.indicatorMode === 'prebook' ? 'Secure Early Access' : 'Book Ciper Indicator Now')}</h2>
+      <p>
+        {selectedIndicator 
+          ? `Pre-book ${selectedIndicator.title} to lock in early-access discount pricing before the public launch.`
+          : (systemConfig.indicatorMode === 'prebook' ? 'Join the waitlist and be the first to experience the future of AI trading.' : 'Complete booking form to activate your live trading indicator license.')}
+      </p>
       <form onSubmit={handleSubmit}>
         <div className="plan-selection-group">
           <label className="group-label">Select Discount Plan</label>
@@ -128,7 +134,7 @@ export default function PrebookForm({
             >
               <span className="plan-name">Monthly Special</span>
               <span className="plan-price">₹{monthlyPrice}/mo</span>
-              <span className="plan-strike">₹{systemConfig.monthlyStrikePrice}/mo</span>
+              <span className="plan-strike">₹{selectedIndicator ? selectedIndicator.monthlyStrikePrice : systemConfig.monthlyStrikePrice}/mo</span>
             </button>
             <button
               type="button"
@@ -138,7 +144,7 @@ export default function PrebookForm({
               <span className="badge-best-value">Best Value</span>
               <span className="plan-name">Annual Special</span>
               <span className="plan-price">₹{annualPrice}/yr</span>
-              <span className="plan-strike">₹{systemConfig.annualStrikePrice}/yr</span>
+              <span className="plan-strike">₹{selectedIndicator ? selectedIndicator.annualStrikePrice : systemConfig.annualStrikePrice}/yr</span>
             </button>
           </div>
         </div>
