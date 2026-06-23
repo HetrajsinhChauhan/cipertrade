@@ -2,6 +2,8 @@ import React, { useRef, useEffect, useState } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import Lenis from 'lenis';
+import 'lenis/dist/lenis.css';
 import Logo from './components/Logo';
 import PrebookForm from './components/PrebookForm';
 import AnimatedChart from './components/AnimatedChart';
@@ -12,14 +14,37 @@ import RadarScanner from './components/RadarScanner';
 import StarField from './components/StarField';
 import ComingSoon from './components/ComingSoon';
 import AdminPanel from './components/AdminPanel';
+import MaintenanceNotice from './components/MaintenanceNotice';
 
 const API_URL = import.meta.env.VITE_API_URL || (
-  window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost:5000'
+  window.location.hostname === 'localhost' || 
+  window.location.hostname === '127.0.0.1' || 
+  window.location.hostname.startsWith('192.168.') || 
+  window.location.hostname.startsWith('10.') || 
+  window.location.hostname.startsWith('172.')
+    ? `http://${window.location.hostname}:5000`
     : window.location.origin
 );
 
 gsap.registerPlugin(ScrollTrigger);
+
+const renderIndicatorIcon = (iconName) => {
+  switch (iconName) {
+    case 'volume':
+      return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="4" height="16" rx="1"></rect><rect x="9" y="8" width="8" height="12" rx="1"></rect><rect x="19" y="11" width="2" height="9" rx="1"></rect></svg>;
+    case 'liquidity':
+      return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>;
+    case 'correlation':
+      return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="10" cy="10" r="6"></circle><circle cx="15" cy="15" r="6"></circle><path d="M10 4a6 6 0 0 1 0 12"></path></svg>;
+    case 'neural':
+      return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="6" cy="12" r="2"></circle><circle cx="14" cy="7" r="2"></circle><circle cx="14" cy="17" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="8" y1="11" x2="12" y2="8"></line><line x1="8" y1="13" x2="12" y2="16"></line><line x1="16" y1="8" x2="18" y2="11"></line><line x1="16" y1="16" x2="18" y2="13"></line></svg>;
+    case 'momentum':
+      return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12h3l3-9 4 18 3-10 3 1h3"></path></svg>;
+    case 'trend':
+    default:
+      return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="21" x2="21" y2="3"></line><circle cx="3" cy="21" r="2"></circle><circle cx="21" cy="3" r="2"></circle></svg>;
+  }
+};
 
 function IndicatorCard({ indicator, referralDiscount, onPrebook, getMonthlyPrice, getAnnualPrice, triggerCelebration }) {
   const [timeLeft, setTimeLeft] = useState(null);
@@ -59,30 +84,12 @@ function IndicatorCard({ indicator, referralDiscount, onPrebook, getMonthlyPrice
   const calculatedMonthly = getMonthlyPrice(indicator);
   const calculatedAnnual = getAnnualPrice(indicator);
 
-  const renderIcon = () => {
-    switch (indicator.icon) {
-      case 'volume':
-        return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="4" height="16" rx="1"></rect><rect x="9" y="8" width="8" height="12" rx="1"></rect><rect x="19" y="11" width="2" height="9" rx="1"></rect></svg>;
-      case 'liquidity':
-        return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>;
-      case 'correlation':
-        return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="10" cy="10" r="6"></circle><circle cx="15" cy="15" r="6"></circle><path d="M10 4a6 6 0 0 1 0 12"></path></svg>;
-      case 'neural':
-        return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="6" cy="12" r="2"></circle><circle cx="14" cy="7" r="2"></circle><circle cx="14" cy="17" r="2"></circle><circle cx="20" cy="12" r="2"></circle><line x1="8" y1="11" x2="12" y2="8"></line><line x1="8" y1="13" x2="12" y2="16"></line><line x1="16" y1="8" x2="18" y2="11"></line><line x1="16" y1="16" x2="18" y2="13"></line></svg>;
-      case 'momentum':
-        return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12h3l3-9 4 18 3-10 3 1h3"></path></svg>;
-      case 'trend':
-      default:
-        return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="21" x2="21" y2="3"></line><circle cx="3" cy="21" r="2"></circle><circle cx="21" cy="3" r="2"></circle></svg>;
-    }
-  };
-
   return (
     <div className="bento-card indicator-card" style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', justifyContent: 'space-between', padding: '2rem' }}>
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <div className="card-icon-wrapper" style={{ color: 'var(--primary-color)', background: 'rgba(189, 0, 255, 0.08)', width: '42px', height: '42px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {renderIcon()}
+            {renderIndicatorIcon(indicator.icon)}
           </div>
           <span className="card-badge" style={{ 
             margin: 0, 
@@ -95,69 +102,30 @@ function IndicatorCard({ indicator, referralDiscount, onPrebook, getMonthlyPrice
         </div>
         
         <h3 className="card-title" style={{ fontSize: '1.6rem', marginBottom: '0.6rem' }}>{indicator.title}</h3>
-        <p className="card-description" style={{ fontSize: '0.88rem', minHeight: '60px', marginBottom: '1rem' }}>{indicator.desc}</p>
+        <p className="card-description" style={{ fontSize: '0.88rem', minHeight: '60px', marginBottom: '1.5rem' }}>{indicator.desc}</p>
         
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(189, 0, 255, 0.05)', border: '1px solid rgba(189, 0, 255, 0.15)', padding: '4px 10px', borderRadius: '12px', marginBottom: '1.2rem' }}>
-          <span style={{ fontSize: '0.85rem' }}>🔥</span>
-          <span style={{ fontSize: '0.78rem', color: '#e2e8f0', fontWeight: '700' }}>
-            {indicator.bookingsCount} pre-booked
-          </span>
-        </div>
-
-        <div style={{ marginBottom: '1.2rem' }}>
-          {timeLeft && !timeLeft.expired ? (
-            <div 
-              style={{
-                display: 'inline-flex',
-                gap: '8px',
-                background: 'rgba(189, 0, 255, 0.04)',
-                border: '1.5px dashed rgba(189, 0, 255, 0.25)',
-                padding: '6px 12px',
-                borderRadius: '12px',
-                alignItems: 'center',
-                cursor: 'pointer',
-                userSelect: 'none'
-              }}
-              onClick={triggerCelebration}
-            >
-              <span style={{ fontSize: '0.65rem', color: '#bd00ff', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Ends In:</span>
-              
-              <div style={{ display: 'flex', gap: '4px', fontFamily: 'monospace', fontSize: '0.9rem', fontWeight: '800', color: '#fff' }}>
-                <span>{String(timeLeft.days).padStart(2, '0')}d</span>
-                <span style={{ color: '#bd00ff' }}>:</span>
-                <span>{String(timeLeft.hours).padStart(2, '0')}h</span>
-                <span style={{ color: '#bd00ff' }}>:</span>
-                <span>{String(timeLeft.minutes).padStart(2, '0')}m</span>
-                <span style={{ color: '#bd00ff' }}>:</span>
-                <span style={{ color: '#bd00ff', textShadow: '0 0 6px rgba(189,0,255,0.4)' }}>{String(timeLeft.seconds).padStart(2, '0')}s</span>
-              </div>
-            </div>
-          ) : (
-            <div 
-              style={{
-                background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.06), rgba(249, 115, 22, 0.06))',
-                border: '1px solid rgba(239, 68, 68, 0.2)',
-                color: '#fca5a5',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '4px 10px',
-                borderRadius: '12px',
-                fontSize: '0.72rem',
-                fontWeight: '800',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                userSelect: 'none'
-              }}
-            >
-              <span className="animate-pulse" style={{ color: '#ef4444' }}>🔴</span> Starting Soon
-            </div>
-          )}
+        {/* Flagship Indicator Details List */}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <h4 style={{ fontSize: '0.9rem', color: '#bd00ff', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '1px', marginBottom: '0.8rem' }}>Key Capabilities:</h4>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+            <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', color: 'var(--text-light)' }}>
+              <span style={{ color: '#10b981', fontWeight: 'bold' }}>✓</span> High-Probability Swing Pivot Connections
+            </li>
+            <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', color: 'var(--text-light)' }}>
+              <span style={{ color: '#10b981', fontWeight: 'bold' }}>✓</span> Multi-Timeframe Auto-Trend Lines (H1, H4, D1)
+            </li>
+            <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', color: 'var(--text-light)' }}>
+              <span style={{ color: '#10b981', fontWeight: 'bold' }}>✓</span> Automatic Chart Pattern Recognition & Vectors
+            </li>
+            <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem', color: 'var(--text-light)' }}>
+              <span style={{ color: '#10b981', fontWeight: 'bold' }}>✓</span> Real-Time Volume Breakout Validation Signals
+            </li>
+          </ul>
         </div>
       </div>
 
       <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '1rem', marginBottom: '1.2rem', gap: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '1rem', gap: '1rem' }}>
           <div>
             <div style={{ fontSize: '0.65rem', color: 'var(--text-light)', textTransform: 'uppercase', fontWeight: '700' }}>Monthly Special</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginTop: '2px' }}>
@@ -174,14 +142,6 @@ function IndicatorCard({ indicator, referralDiscount, onPrebook, getMonthlyPrice
             </div>
           </div>
         </div>
-
-        <button 
-          onClick={() => onPrebook('annual', indicator)}
-          className="btn-primary" 
-          style={{ width: '100%', padding: '0.75rem', fontSize: '0.88rem', borderRadius: '16px' }}
-        >
-          Pre-Book Now
-        </button>
       </div>
     </div>
   );
@@ -215,6 +175,46 @@ function App() {
     countdownTargetDate: null
   });
 
+  // Dynamic WebContent CMS copy
+  const [webContent, setWebContent] = useState({
+    heroBadge: "Ciper AI Platform",
+    heroTitle1: "Automate",
+    heroTitle2: "Your Market Edge",
+    heroDesc: "Ciper uses advanced neural networks to map out the market in real-time. Detects support/resistance zones, high-probability convergence areas, and breakouts automatically.",
+    
+    heroSlide2Badge: "Featured Indicator",
+    heroSlide2Title1: "Ciper TL",
+    heroSlide2Title2: "Trend Scanner",
+    heroSlide2Desc: "Automatically plot high-probability trend lines and identify chart pattern breakout zones in higher timeframes (H1, H4, D1).",
+
+    accuracyValue: 94,
+    
+    stat1Num: "730K",
+    stat1Label: "Calculations/sec",
+    stat1Desc: "Real-time compute nodes analyzing micro-structure changes.",
+    
+    stat2Num: "94%",
+    stat2Label: "Model Accuracy",
+    stat2Desc: "Historical test results on multi-timeframe breakouts.",
+    
+    stat3Num: "12K+",
+    stat3Label: "Global Backtests",
+    stat3Desc: "Simulated market cycles across major tokens and assets.",
+    
+    faqs: [
+      { q: "How does Ciper detect pattern zones?", a: "Ciper scans historical and real-time candlestick data across multiple timeframes, calculating mathematical standard deviations and liquidity imbalances to map pattern zones." },
+      { q: "Is Ciper suitable for beginners?", a: "Yes. Ciper takes complex institutional concepts (like support/resistance nodes and multi-indicator convergence) and translates them into simple, clean visual cues on your chart." },
+      { q: "Which assets and platforms does Ciper support?", a: "Ciper works across major asset classes including Cryptocurrencies, Forex, and Stocks. It is designed to integrate seamlessly with major charting platforms like TradingView." },
+      { q: "What does the early access waitlist include?", a: "Joining the waitlist secures your early access slot, exclusive discounted pricing upon launch, and access to private beta testing groups." }
+    ],
+    
+    reviews: [
+      { quote: "Works like absolute magic. The neural pattern scanner marks structural zones in seconds. Completely optimized my entries and exit speeds.", user: "@Mishatrading", avatar: "MT", role: "Pro Crypto Trader" },
+      { quote: "The auto support & resistance overlays are incredibly precise. It maps liquidity pools exactly where institutional orders sit. Highly recommend.", user: "@NazarBuch", avatar: "NB", role: "Forex Specialist" },
+      { quote: "Ciper's convergence metrics have saved me hours of analysis. Seeing multiple mathematical indicators align in real-time is a complete cheat code.", user: "@CryptoApex", avatar: "CA", role: "Equity Analyst" }
+    ]
+  });
+
   // Referral discount tracking
   const [referralDiscount, setReferralDiscount] = useState({
     code: '',
@@ -224,6 +224,7 @@ function App() {
 
   // Dynamic Indicators List
   const [indicatorsList, setIndicatorsList] = useState([]);
+  const [allIndicators, setAllIndicators] = useState([]);
   const [selectedIndicator, setSelectedIndicator] = useState(null);
 
   // Setup routing listener
@@ -261,6 +262,48 @@ function App() {
     fetchConfig();
   }, []);
 
+  // Initialize Lenis smooth scroll
+  useEffect(() => {
+    if (currentPath === '/adminhetraj') return;
+
+    const lenis = new Lenis({
+      duration: 1.2,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), // easeOutExpo
+      smoothWheel: true,
+      wheelMultiplier: 1.0,
+      touchMultiplier: 1.5,
+    });
+
+    lenis.on('scroll', ScrollTrigger.update);
+
+    const gsapTickerUpdate = (time) => {
+      lenis.raf(time * 1000);
+    };
+    gsap.ticker.add(gsapTickerUpdate);
+    gsap.ticker.lagSmoothing(0);
+
+    return () => {
+      gsap.ticker.remove(gsapTickerUpdate);
+      lenis.destroy();
+    };
+  }, [currentPath]);
+
+  // Fetch dynamic WebContent copy config on mount
+  useEffect(() => {
+    const fetchWebContent = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/webcontent`);
+        if (res.ok) {
+          const data = await res.json();
+          setWebContent(data);
+        }
+      } catch (err) {
+        console.error('Error fetching web content copy:', err);
+      }
+    };
+    fetchWebContent();
+  }, []);
+
   // Fetch indicators list from backend on mount
   useEffect(() => {
     const fetchIndicators = async () => {
@@ -268,7 +311,12 @@ function App() {
         const res = await fetch(`${API_URL}/api/indicators`);
         if (res.ok) {
           const data = await res.json();
-          setIndicatorsList(data);
+          setAllIndicators(data);
+          // Filter to only keep Trend Line indicator on the user side page
+          const trendOnly = data.filter(
+            (ind) => ind.icon === 'trend' || ind.title.includes('Trend Line') || ind.title.includes('TL')
+          );
+          setIndicatorsList(trendOnly);
         }
       } catch (err) {
         console.error('Error fetching indicators:', err);
@@ -324,22 +372,22 @@ function App() {
 
   const heroSlides = [
     {
-      badge: "Ciper AI Platform",
-      titleSpan1: "Automate",
-      titleSpan2: "Your Market Edge",
-      desc: "Ciper uses advanced neural networks to map out the market in real-time. Detects support/resistance zones, high-probability convergence areas, and breakouts automatically.",
+      badge: webContent.heroBadge || "Ciper AI Platform",
+      titleSpan1: webContent.heroTitle1 || "Automate",
+      titleSpan2: webContent.heroTitle2 || "Your Market Edge",
+      desc: webContent.heroDesc || "Ciper uses advanced neural networks to map out the market in real-time. Detects support/resistance zones, high-probability convergence areas, and breakouts automatically.",
       primaryBtnText: "Explore Features",
       primaryAction: () => scrollToSection('features'),
-      secondaryBtnText: "Join Waitlist",
-      secondaryAction: () => openPrebookModal('annual', indicatorsList[0])
+      secondaryBtnText: "Pre-Book Now",
+      secondaryAction: () => scrollToSection('prebook')
     },
     {
-      badge: "Featured Indicator",
-      titleSpan1: "Ciper TL",
-      titleSpan2: "Trend Scanner",
-      desc: "Automatically plot high-probability trend lines and identify chart pattern breakout zones in higher timeframes (H1, H4, D1).",
+      badge: webContent.heroSlide2Badge || "Featured Indicator",
+      titleSpan1: webContent.heroSlide2Title1 || "Ciper TL",
+      titleSpan2: webContent.heroSlide2Title2 || "Trend Scanner",
+      desc: webContent.heroSlide2Desc || "Automatically plot high-probability trend lines and identify chart pattern breakout zones in higher timeframes (H1, H4, D1).",
       primaryBtnText: "Pre-Book Now",
-      primaryAction: () => openPrebookModal('annual', indicatorsList[0]),
+      primaryAction: () => scrollToSection('prebook'),
       secondaryBtnText: "Learn More",
       secondaryAction: () => scrollToSection('prebook')
     }
@@ -499,8 +547,13 @@ function App() {
     return <AdminPanel />;
   }
 
+  // Maintenance Mode route guard
+  if (systemConfig.maintenanceMode && currentPath !== '/adminhetraj') {
+    return <MaintenanceNotice />;
+  }
 
-  const reviews = [
+
+  const reviews = webContent.reviews && webContent.reviews.length > 0 ? webContent.reviews : [
     {
       quote: "Works like absolute magic. The neural pattern scanner marks structural zones in seconds. Completely optimized my entries and exit speeds.",
       user: "@Mishatrading",
@@ -551,7 +604,7 @@ function App() {
     });
   };
 
-  const faqs = [
+  const faqs = webContent.faqs && webContent.faqs.length > 0 ? webContent.faqs : [
     {
       q: "How does Ciper detect pattern zones?",
       a: "Ciper scans historical and real-time candlestick data across multiple timeframes, calculating mathematical standard deviations and liquidity imbalances to map pattern zones."
@@ -798,7 +851,7 @@ function App() {
     // Radial Dial & Accuracy Counter Animation
     const countObj = { val: 0 };
     gsap.to(countObj, {
-      val: 94,
+      val: webContent.accuracyValue || 94,
       duration: 2.2,
       ease: 'power2.out',
       scrollTrigger: {
@@ -812,7 +865,7 @@ function App() {
     });
     
     gsap.to('.radial-progress-bar', {
-      strokeDashoffset: 408 * (1 - 0.94),
+      strokeDashoffset: 408 * (1 - (webContent.accuracyValue || 94) / 100),
       duration: 2.2,
       ease: 'power2.out',
       scrollTrigger: {
@@ -995,6 +1048,22 @@ function App() {
     }
   };
 
+  const handleNavClick = (e, sectionId) => {
+    e.preventDefault();
+    setIsMobileMenuOpen(false);
+    if (currentPath !== '/' && currentPath !== '') {
+      navigateTo('/');
+      setTimeout(() => {
+        const element = document.getElementById(sectionId);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 300);
+    } else {
+      scrollToSection(sectionId);
+    }
+  };
+
   return (
     <div ref={container} style={{ position: 'relative' }}>
       <StarField />
@@ -1014,13 +1083,14 @@ function App() {
             
             {/* Desktop Nav Links */}
             <div className="nav-links">
-              <a href="#features" className="magnetic-element" onClick={(e) => { e.preventDefault(); scrollToSection('features'); }}>Features</a>
-              <a href="#testimonials" className="magnetic-element" onClick={(e) => { e.preventDefault(); scrollToSection('testimonials'); }}>Reviews</a>
-              <a href="#prebook" className="magnetic-element" onClick={(e) => { e.preventDefault(); scrollToSection('prebook'); }}>Pre-Book</a>
+              <a href="#features" className="magnetic-element" onClick={(e) => handleNavClick(e, 'features')}>Features</a>
+              <a href="#testimonials" className="magnetic-element" onClick={(e) => handleNavClick(e, 'testimonials')}>Reviews</a>
+              <a href="/indicators" className="magnetic-element" style={{ color: currentPath === '/indicators' ? 'var(--primary-color)' : '' }} onClick={(e) => { e.preventDefault(); navigateTo('/indicators'); }}>Indicators</a>
+              <a href="#prebook" className="magnetic-element" onClick={(e) => handleNavClick(e, 'prebook')}>Pre-Book</a>
             </div>
 
             <div className="navbar-actions">
-              <button className="btn-primary desktop-get-started magnetic-element" style={{ padding: '0.6rem 1.5rem', fontSize: '0.9rem' }} onClick={() => openPrebookModal('annual')}>
+              <button className="btn-primary desktop-get-started magnetic-element" style={{ padding: '0.6rem 1.5rem', fontSize: '0.9rem' }} onClick={(e) => handleNavClick(e, 'prebook')}>
                 Get Started
               </button>
 
@@ -1040,10 +1110,11 @@ function App() {
           {/* Mobile dropdown panel */}
           {isMobileMenuOpen && (
             <div className="mobile-menu-panel animate-slide-down">
-              <a href="#features" onClick={(e) => { e.preventDefault(); setIsMobileMenuOpen(false); scrollToSection('features'); }}>Features</a>
-              <a href="#testimonials" onClick={(e) => { e.preventDefault(); setIsMobileMenuOpen(false); scrollToSection('testimonials'); }}>Reviews</a>
-              <a href="#prebook" onClick={(e) => { e.preventDefault(); setIsMobileMenuOpen(false); scrollToSection('prebook'); }}>Pre-Book</a>
-              <button className="btn-primary" style={{ width: '100%', marginTop: '0.5rem', padding: '0.8rem' }} onClick={() => { setIsMobileMenuOpen(false); openPrebookModal('annual'); }}>
+              <a href="#features" onClick={(e) => handleNavClick(e, 'features')}>Features</a>
+              <a href="#testimonials" onClick={(e) => handleNavClick(e, 'testimonials')}>Reviews</a>
+              <a href="/indicators" style={{ color: currentPath === '/indicators' ? 'var(--primary-color)' : '' }} onClick={(e) => { e.preventDefault(); setIsMobileMenuOpen(false); navigateTo('/indicators'); }}>Indicators</a>
+              <a href="#prebook" onClick={(e) => handleNavClick(e, 'prebook')}>Pre-Book</a>
+              <button className="btn-primary" style={{ width: '100%', marginTop: '0.5rem', padding: '0.8rem' }} onClick={(e) => handleNavClick(e, 'prebook')}>
                 Get Started
               </button>
             </div>
@@ -1051,7 +1122,80 @@ function App() {
         </nav>
       </div>
 
-      <main>
+      {currentPath === '/indicators' ? (
+        <main style={{ padding: '8rem 5% 4rem', minHeight: '80vh', maxWidth: '1200px', margin: '0 auto', textAlign: 'center' }}>
+          <div style={{ marginBottom: '4rem' }} className="section-header">
+            <span className="card-badge" style={{ background: 'rgba(189, 0, 255, 0.1)', color: '#d866ff', border: '1px solid rgba(189,0,255,0.2)' }}>Ciper AI Catalog</span>
+            <h1 style={{ fontSize: '3.5rem', fontWeight: '800', marginBottom: '1.2rem', lineHeight: '1.1', color: '#fff' }}>
+              Explore Our <span className="gradient">Indicators</span>
+            </h1>
+            <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', maxWidth: '650px', margin: '0 auto' }}>
+              Deploy state-of-the-art algorithmic scanners directly on your TradingView charts. Pre-book or buy active indicators below.
+            </p>
+          </div>
+
+          <div className="bento-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem', width: '100%', display: 'grid' }}>
+            {allIndicators.map((ind) => (
+              <div key={ind._id} className="bento-card indicator-card" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', justifyContent: 'space-between', padding: '2.5rem', minHeight: '450px' }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                    <div className="card-icon-wrapper" style={{ color: 'var(--primary-color)', background: 'rgba(189, 0, 255, 0.08)', width: '46px', height: '46px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {renderIndicatorIcon(ind.icon)}
+                    </div>
+                    <span className="card-badge" style={{ 
+                      margin: 0, 
+                      background: ind.status.includes('Beta') ? 'rgba(16, 185, 129, 0.1)' : 'rgba(249, 115, 22, 0.1)', 
+                      color: ind.status.includes('Beta') ? '#10b981' : '#f97316',
+                      border: ind.status.includes('Beta') ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(249, 115, 22, 0.2)'
+                    }}>
+                      {ind.status}
+                    </span>
+                  </div>
+                  
+                  <h3 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '0.8rem', textAlign: 'left', color: '#fff' }}>{ind.title}</h3>
+                  <p style={{ fontSize: '0.92rem', color: 'var(--text-muted)', textAlign: 'left', lineHeight: '1.6', minHeight: '75px', marginBottom: '1.5rem' }}>{ind.desc}</p>
+                  
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1.2rem', gap: '1rem', textAlign: 'left' }}>
+                    <div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-light)', textTransform: 'uppercase', fontWeight: '750', letterSpacing: '0.5px' }}>Monthly Pass</div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginTop: '4px' }}>
+                        <span style={{ textDecoration: 'line-through', fontSize: '0.8rem', color: 'var(--text-light)' }}>₹{ind.monthlyStrikePrice}</span>
+                        <span style={{ color: 'var(--success-color)', fontWeight: '800', fontSize: '1.2rem' }}>₹{getMonthlyPrice(ind)}</span>
+                      </div>
+                    </div>
+                    <div style={{ borderRight: '1px solid rgba(255,255,255,0.08)' }}></div>
+                    <div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-light)', textTransform: 'uppercase', fontWeight: '750', letterSpacing: '0.5px' }}>Annual Pass</div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginTop: '4px' }}>
+                        <span style={{ textDecoration: 'line-through', fontSize: '0.8rem', color: 'var(--text-light)' }}>₹{ind.annualStrikePrice}</span>
+                        <span style={{ color: 'var(--primary-color)', fontWeight: '800', fontSize: '1.2rem' }}>₹{getAnnualPrice(ind)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '1rem' }}>
+                  <button 
+                    className="btn-secondary" 
+                    style={{ padding: '0.8rem', fontSize: '0.85rem', borderRadius: '30px' }}
+                    onClick={() => openPrebookModal('monthly', ind)}
+                  >
+                    Get Monthly
+                  </button>
+                  <button 
+                    className="btn-primary" 
+                    style={{ padding: '0.8rem', fontSize: '0.85rem', borderRadius: '30px', boxShadow: 'none' }}
+                    onClick={() => openPrebookModal('annual', ind)}
+                  >
+                    Buy Annual
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </main>
+      ) : (
+        <main>
         {/* Hero Section */}
         <section className="hero" style={{ position: 'relative' }}>
 
@@ -1186,33 +1330,10 @@ function App() {
           onPrebook={openPrebookModal} 
           systemConfig={systemConfig}
           referralDiscount={referralDiscount}
-          monthlyPrice={getMonthlyPrice(indicatorsList[0])}
-          annualPrice={getAnnualPrice(indicatorsList[0])}
-          indicator={indicatorsList[0]}
+          allIndicators={allIndicators}
+          getMonthlyPrice={getMonthlyPrice}
+          getAnnualPrice={getAnnualPrice}
         />
-
-        {/* Dynamic AI Indicator Suite Grid */}
-        <section className="bento-section" id="indicator-suite" style={{ paddingTop: '2rem', paddingBottom: '4rem' }}>
-          <div className="section-header">
-            <span className="card-badge" style={{ background: 'rgba(0, 87, 255, 0.1)', color: '#60a5fa', border: '1px solid rgba(0,87,255,0.2)' }}>Suite</span>
-            <h2>Our Advanced Indicator Suite</h2>
-            <p>Explore specialized trading scripts and neural scanner tools available for immediate waitlist pre-booking.</p>
-          </div>
-          
-          <div className="bento-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', width: '100%', maxWidth: '1200px' }}>
-            {indicatorsList.map((indicator) => (
-              <IndicatorCard 
-                key={indicator._id}
-                indicator={indicator}
-                referralDiscount={referralDiscount}
-                onPrebook={openPrebookModal}
-                getMonthlyPrice={getMonthlyPrice}
-                getAnnualPrice={getAnnualPrice}
-                triggerCelebration={triggerCelebration}
-              />
-            ))}
-          </div>
-        </section>
 
         {/* Live Performance Stats Dashboard Section */}
         <section className="stats-dashboard-section" id="stats">
@@ -1223,19 +1344,19 @@ function App() {
           </div>
           <div className="stats-bar-grid">
             <div className="stat-bar-card">
-              <div className="stat-bar-num" style={{ color: '#bd00ff' }}>94%</div>
-              <div className="stat-bar-label">Setup Accuracy</div>
-              <div className="stat-bar-desc">Aggregated success rating recorded across validated neural breakout zones.</div>
+              <div className="stat-bar-num" style={{ color: '#bd00ff' }}>{webContent.stat2Num || '94%'}</div>
+              <div className="stat-bar-label">{webContent.stat2Label || 'Setup Accuracy'}</div>
+              <div className="stat-bar-desc">{webContent.stat2Desc || 'Aggregated success rating recorded across validated neural breakout zones.'}</div>
             </div>
             <div className="stat-bar-card">
-              <div className="stat-bar-num">53</div>
-              <div className="stat-bar-label">Active Scans / Min</div>
-              <div className="stat-bar-desc">Continuous real-time scans across multiple timeframes simultaneously.</div>
+              <div className="stat-bar-num">{webContent.stat1Num || '53'}</div>
+              <div className="stat-bar-label">{webContent.stat1Label || 'Active Scans / Min'}</div>
+              <div className="stat-bar-desc">{webContent.stat1Desc || 'Continuous real-time scans across multiple timeframes simultaneously.'}</div>
             </div>
             <div className="stat-bar-card">
-              <div className="stat-bar-num" style={{ color: '#ef4444' }}>4%</div>
-              <div className="stat-bar-label">Max Drawdown</div>
-              <div className="stat-bar-desc">Minimal risk parameters enforced automatically by overlapping convergence zones.</div>
+              <div className="stat-bar-num" style={{ color: '#ef4444' }}>{webContent.stat3Num || '4%'}</div>
+              <div className="stat-bar-label">{webContent.stat3Label || 'Max Drawdown'}</div>
+              <div className="stat-bar-desc">{webContent.stat3Desc || 'Minimal risk parameters enforced automatically by overlapping convergence zones.'}</div>
             </div>
           </div>
         </section>
@@ -1500,6 +1621,7 @@ function App() {
         {/* FAQ Section Removed */}
 
       </main>
+      )}
 
       {/* Rich Detailed Footer */}
       <footer>
@@ -1516,23 +1638,23 @@ function App() {
             <h4>Product</h4>
             <ul className="footer-links">
               <li><a href="#features">Features</a></li>
-              <li><a href="#prebook" onClick={(e) => { e.preventDefault(); openPrebookModal('annual'); }}>Pre-Book</a></li>
+              <li><a href="#prebook" onClick={(e) => { e.preventDefault(); scrollToSection('prebook'); }}>Pre-Book</a></li>
             </ul>
           </div>
           <div className="footer-column">
             <h4>Resources</h4>
             <ul className="footer-links">
-              <li><a href="#prebook" onClick={(e) => { e.preventDefault(); openPrebookModal('annual'); }}>Beta Access</a></li>
+              <li><a href="#prebook" onClick={(e) => { e.preventDefault(); scrollToSection('prebook'); }}>Beta Access</a></li>
               <li><a href="#testimonials" onClick={(e) => { e.preventDefault(); scrollToSection('testimonials'); }}>Documentation</a></li>
-              <li><a href="https://t.me/" target="_blank" rel="noreferrer">Telegram Channel</a></li>
+              <li><a href="https://t.me/" target="_blank" rel="noreferrer" className="external-link">Telegram Channel</a></li>
             </ul>
           </div>
           <div className="footer-column">
             <h4>Legal</h4>
             <ul className="footer-links">
-              <li><a href="#prebook" onClick={(e) => { e.preventDefault(); openPrebookModal('annual'); }}>Risk Warning</a></li>
-              <li><a href="#prebook" onClick={(e) => { e.preventDefault(); openPrebookModal('annual'); }}>Privacy Policy</a></li>
-              <li><a href="#prebook" onClick={(e) => { e.preventDefault(); openPrebookModal('annual'); }}>Terms of Service</a></li>
+              <li><a href="#prebook" onClick={(e) => { e.preventDefault(); scrollToSection('prebook'); }}>Risk Warning</a></li>
+              <li><a href="#prebook" onClick={(e) => { e.preventDefault(); scrollToSection('prebook'); }}>Privacy Policy</a></li>
+              <li><a href="#prebook" onClick={(e) => { e.preventDefault(); scrollToSection('prebook'); }}>Terms of Service</a></li>
             </ul>
           </div>
         </div>

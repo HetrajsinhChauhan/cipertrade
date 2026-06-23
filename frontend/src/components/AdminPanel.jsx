@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || (
-  window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost:5000'
+  window.location.hostname === 'localhost' || 
+  window.location.hostname === '127.0.0.1' || 
+  window.location.hostname.startsWith('192.168.') || 
+  window.location.hostname.startsWith('10.') || 
+  window.location.hostname.startsWith('172.')
+    ? `http://${window.location.hostname}:5000`
     : window.location.origin
 );
 
@@ -41,7 +45,7 @@ export default function AdminPanel() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [credentials, setCredentials] = useState({ email: '', password: '' });
   const [otp, setOtp] = useState('');
-  const [token, setToken] = useState(localStorage.getItem('ciper_admin_token') || '');
+  const [token, setToken] = useState('');
   
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
@@ -71,13 +75,44 @@ export default function AdminPanel() {
     annualDiscountPrice: 999,
     annualStrikePrice: 1200,
     indicatorMode: 'prebook',
-    countdownTargetDate: ''
+    countdownTargetDate: '',
+    maintenanceMode: false
   });
 
   // Editor states
   const [newPricing, setNewPricing] = useState({ ...config });
   const [newReferral, setNewReferral] = useState({ code: '', name: '', discountPercent: 10 });
-  const [activeTab, setActiveTab] = useState('leads'); // leads, referrals, config
+  const [activeTab, setActiveTab] = useState('analytics'); // analytics, leads, referrals, indicators, config, profile, cms
+
+  // Search, Filters & Sorting
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [planFilter, setPlanFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('dateDesc');
+
+  // Web CMS Copy State
+  const [cmsContent, setCmsContent] = useState({
+    heroBadge: "Ciper AI Platform",
+    heroTitle1: "Automate",
+    heroTitle2: "Your Market Edge",
+    heroDesc: "Ciper uses advanced neural networks to map out the market in real-time. Detects support/resistance zones, high-probability convergence areas, and breakouts automatically.",
+    heroSlide2Badge: "Featured Indicator",
+    heroSlide2Title1: "Ciper TL",
+    heroSlide2Title2: "Trend Scanner",
+    heroSlide2Desc: "Automatically plot high-probability trend lines and identify chart pattern breakout zones in higher timeframes (H1, H4, D1).",
+    accuracyValue: 94,
+    stat1Num: "730K",
+    stat1Label: "Calculations/sec",
+    stat1Desc: "Real-time compute nodes analyzing micro-structure changes.",
+    stat2Num: "94%",
+    stat2Label: "Model Accuracy",
+    stat2Desc: "Historical test results on multi-timeframe breakouts.",
+    stat3Num: "12K+",
+    stat3Label: "Global Backtests",
+    stat3Desc: "Simulated market cycles across major tokens and assets.",
+    faqs: [],
+    reviews: []
+  });
 
   // Profile update states
   const [newAdminEmail, setNewAdminEmail] = useState('');
@@ -99,13 +134,63 @@ export default function AdminPanel() {
   const decodedToken = decodeJwt(token);
   const currentAdminEmail = decodedToken ? decodedToken.email : 'admin@cipertrade.com';
 
-  // Check if already logged in on mount
+  // Check session on mount via silent refresh
   useEffect(() => {
-    if (token) {
-      setAuthStep('dashboard');
+    const restoreSession = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/admin/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.token) {
+            setToken(data.token);
+            setAuthStep('dashboard');
+          }
+        }
+      } catch (err) {
+        console.error('Failed to restore admin session:', err);
+      }
+    };
+    restoreSession();
+  }, []);
+
+  // Fetch dashboard data when token or authStep changes
+  useEffect(() => {
+    if (token && authStep === 'dashboard') {
       fetchDashboardData();
     }
-  }, [token]);
+  }, [token, authStep]);
+
+  // Silent refresh interval every 14 minutes
+  useEffect(() => {
+    if (authStep !== 'dashboard' || !token) return;
+
+    const FOURTEEN_MINUTES = 14 * 60 * 1000;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/admin/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.token) {
+            console.log('[SESSION] Silent refresh successful.');
+            setToken(data.token);
+          }
+        } else {
+          console.warn('[SESSION] Silent refresh failed, logging out.');
+          handleLogout();
+        }
+      } catch (err) {
+        console.error('[SESSION] Error during silent refresh:', err);
+      }
+    }, FOURTEEN_MINUTES);
+
+    return () => clearInterval(interval);
+  }, [authStep, token]);
 
   // Set pricing editor when config loads
   useEffect(() => {
@@ -189,6 +274,13 @@ export default function AdminPanel() {
         const indData = await indRes.json();
         setIndicators(indData || []);
       }
+
+      // Fetch WebContent Copy (CMS)
+      const webcontentRes = await fetch(`${API_URL}/api/webcontent`);
+      if (webcontentRes.ok) {
+        const webcontentData = await webcontentRes.json();
+        setCmsContent(webcontentData);
+      }
     } catch (err) {
       console.error('Error loading dashboard data:', err);
     }
@@ -236,7 +328,6 @@ export default function AdminPanel() {
         setAuthStep('pin');
         setOtp('');
       } else {
-        localStorage.setItem('ciper_admin_token', data.token);
         setToken(data.token);
         setAuthStep('dashboard');
       }
@@ -267,7 +358,6 @@ export default function AdminPanel() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'PIN verification failed');
       
-      localStorage.setItem('ciper_admin_token', data.token);
       setToken(data.token);
       setAuthStep('dashboard');
       setPinCode('');
@@ -283,8 +373,15 @@ export default function AdminPanel() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('ciper_admin_token');
+  const handleLogout = async () => {
+    try {
+      await fetch(`${API_URL}/api/admin/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (err) {
+      console.error('Failed to logout from backend:', err);
+    }
     setToken('');
     setAuthStep('login');
     setCredentials({ email: '', password: '' });
@@ -339,7 +436,6 @@ export default function AdminPanel() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update profile');
       
-      localStorage.setItem('ciper_admin_token', data.token);
       setToken(data.token);
       setSuccess('Admin credentials updated successfully! Active session renewed.');
       
@@ -374,6 +470,31 @@ export default function AdminPanel() {
       if (!res.ok) throw new Error(data.error || 'Failed to save config');
       setConfig(data.config);
       setSuccess('Pricing and indicator configurations updated successfully!');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveCmsContent = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch(`${API_URL}/api/admin/webcontent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(cmsContent)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save CMS settings');
+      setCmsContent(data.content);
+      setSuccess('Website landing page CMS settings updated successfully! Changes are live.');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -538,11 +659,79 @@ export default function AdminPanel() {
     }
   };
 
+  // Get filtered and sorted waitlist leads
+  const getFilteredAndSortedLeads = () => {
+    let list = [...prebookings];
+    
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(p => 
+        (p.name && p.name.toLowerCase().includes(q)) || 
+        (p.email && p.email.toLowerCase().includes(q)) || 
+        (p.refCode && p.refCode.toLowerCase().includes(q)) || 
+        (p.tradingView && p.tradingView.toLowerCase().includes(q))
+      );
+    }
+    
+    // Status filter
+    if (statusFilter !== 'all') {
+      const isApproved = statusFilter === 'approved';
+      list = list.filter(p => p.approved === isApproved);
+    }
+    
+    // Plan filter
+    if (planFilter !== 'all') {
+      list = list.filter(p => p.plan === planFilter);
+    }
+    
+    // Sorting
+    list.sort((a, b) => {
+      if (sortBy === 'dateDesc') {
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      }
+      if (sortBy === 'dateAsc') {
+        return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+      }
+      if (sortBy === 'nameAsc') {
+        return (a.name || '').localeCompare(b.name || '');
+      }
+      if (sortBy === 'planValDesc') {
+        const valA = a.plan === 'annual' ? 2 : (a.plan === 'monthly' ? 1 : 0);
+        const valB = b.plan === 'annual' ? 2 : (b.plan === 'monthly' ? 1 : 0);
+        return valB - valA;
+      }
+      return 0;
+    });
+    
+    return list;
+  };
+
+  const getDiscountPercent = (strike, discount) => {
+    const s = Number(strike) || 0;
+    const d = Number(discount) || 0;
+    if (s <= 0) return 0;
+    return Math.round(((s - d) / s) * 100);
+  };
+
+  const renderSavingsLabel = (strike, discount) => {
+    const s = Number(strike) || 0;
+    const d = Number(discount) || 0;
+    if (s <= 0 || d >= s) return null;
+    const savings = s - d;
+    const pct = Math.round((savings / s) * 100);
+    return (
+      <span style={{ fontSize: '0.68rem', color: '#10b981', display: 'block', marginTop: '4px', fontWeight: 600 }}>
+        Save ₹{savings} ({pct}% off)
+      </span>
+    );
+  };
+
   // Rendering
   return (
-    <div className="admin-theme-light" style={{ position: 'relative', minHeight: '100vh', overflowX: 'hidden', backgroundColor: '#f8fafc', color: '#1e293b' }}>
+    <div className="admin-theme-dark" style={{ position: 'relative', minHeight: '100vh', overflowX: 'hidden', backgroundColor: '#09090b', color: '#f4f4f5' }}>
       {authStep === 'login' && (
-        <div className="modal-overlay" style={{ background: '#f8fafc', minHeight: '100vh', padding: '2rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', zIndex: 10 }}>
+        <div className="modal-overlay" style={{ background: '#09090b', minHeight: '100vh', padding: '2rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', zIndex: 10 }}>
           <div className="form-container" style={{ maxWidth: '380px', position: 'relative', zIndex: 10 }}>
             <div className="brand-text" style={{ fontSize: '1.8rem', fontWeight: 800, color: '#bd00ff', letterSpacing: '1px', marginBottom: '1rem', textTransform: 'uppercase' }}>Ciper AI</div>
             <h2>Host Login</h2>
@@ -564,6 +753,7 @@ export default function AdminPanel() {
                 <input
                   type="password"
                   required
+                  autocomplete="off"
                   placeholder="••••••••"
                   value={credentials.password}
                   onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
@@ -579,7 +769,7 @@ export default function AdminPanel() {
       )}
 
       {authStep === 'otp' && (
-        <div className="modal-overlay" style={{ background: '#f8fafc', minHeight: '100vh', padding: '2rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', zIndex: 10 }}>
+        <div className="modal-overlay" style={{ background: '#09090b', minHeight: '100vh', padding: '2rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', zIndex: 10 }}>
           <div className="form-container" style={{ maxWidth: '360px', position: 'relative', zIndex: 10 }}>
             <div className="brand-text" style={{ fontSize: '1.8rem', fontWeight: 800, color: '#bd00ff', letterSpacing: '1px', marginBottom: '1rem', textTransform: 'uppercase' }}>Ciper AI</div>
             <h2>OTP Security Code</h2>
@@ -591,6 +781,7 @@ export default function AdminPanel() {
                 <input
                   type="text"
                   required
+                  autocomplete="off"
                   maxLength="6"
                   placeholder="123456"
                   style={{ textAlign: 'center', fontSize: '1.3rem', letterSpacing: '8px' }}
@@ -610,7 +801,7 @@ export default function AdminPanel() {
       )}
 
       {authStep === 'pin' && (
-        <div className="modal-overlay" style={{ background: '#f8fafc', minHeight: '100vh', padding: '2rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', zIndex: 10 }}>
+        <div className="modal-overlay" style={{ background: '#09090b', minHeight: '100vh', padding: '2rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', zIndex: 10 }}>
           <div className="form-container" style={{ maxWidth: '360px', position: 'relative', zIndex: 10 }}>
             <div className="brand-text" style={{ fontSize: '1.8rem', fontWeight: 800, color: '#bd00ff', letterSpacing: '1px', marginBottom: '1rem', textTransform: 'uppercase' }}>Ciper AI</div>
             <h2>Security PIN Code</h2>
@@ -622,6 +813,7 @@ export default function AdminPanel() {
                 <input
                   type="password"
                   required
+                  autocomplete="off"
                   placeholder="••••••••••"
                   style={{ textAlign: 'center', fontSize: '1.3rem', letterSpacing: '8px' }}
                   value={pinCode}
@@ -661,6 +853,14 @@ export default function AdminPanel() {
             {/* Sidebar Links */}
             <nav style={{ flex: 1, padding: '1.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <button
+                onClick={() => { setActiveTab('analytics'); setIsSidebarOpen(false); }}
+                className={`sidebar-link ${activeTab === 'analytics' ? 'active' : ''}`}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                <span style={{ flex: 1 }}>Analytics Dashboard</span>
+              </button>
+
+              <button
                 onClick={() => { setActiveTab('leads'); setIsSidebarOpen(false); }}
                 className={`sidebar-link ${activeTab === 'leads' ? 'active' : ''}`}
               >
@@ -699,6 +899,14 @@ export default function AdminPanel() {
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                 <span style={{ flex: 1 }}>Web Config</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab('cms'); setIsSidebarOpen(false); }}
+                className={`sidebar-link ${activeTab === 'cms' ? 'active' : ''}`}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                <span style={{ flex: 1 }}>Website CMS</span>
               </button>
 
               <button
@@ -759,10 +967,12 @@ export default function AdminPanel() {
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
                 </button>
                 <div className="admin-header-title">
+                  {activeTab === 'analytics' && 'Analytics Dashboard'}
                   {activeTab === 'leads' && 'Waitlist Leads'}
                   {activeTab === 'referrals' && 'Referral Program'}
                   {activeTab === 'indicators' && 'Manage Indicators'}
                   {activeTab === 'config' && 'Web Configuration'}
+                  {activeTab === 'cms' && 'Website CMS Settings'}
                   {activeTab === 'profile' && 'Admin Profile'}
                 </div>
               </div>
@@ -856,11 +1066,13 @@ export default function AdminPanel() {
               {/* Header subtitle area inside page (cleaner) */}
               <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '1.2rem', marginBottom: '2rem' }}>
                 <p style={{ color: '#94a3b8', fontSize: '0.88rem', margin: 0 }}>
+                  {activeTab === 'analytics' && 'Visualize platform metrics, plan preferences, and conversion rates.'}
                   {activeTab === 'leads' && 'Approve early-access waitlist members and dispatch confirmation keys.'}
                   {activeTab === 'referrals' && 'Generate and monitor tracking links for influencers.'}
                   {activeTab === 'indicators' && 'Introduce new indicator offerings, configure discount pricing and timers, and view bookings.'}
                   {activeTab === 'config' && 'Configure product pricing plans and booking status.'}
                   {activeTab === 'profile' && 'Update your administrator email and password securely with OTP confirmation.'}
+                  {activeTab === 'cms' && 'Customize copy, statistics numbers, FAQs, and subscriber reviews shown on the landing page.'}
                 </p>
               </div>
 
@@ -896,7 +1108,7 @@ export default function AdminPanel() {
               )}
 
               {/* KPI Overview row */}
-              {activeTab !== 'profile' && (
+              {activeTab === 'analytics' && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '2.5rem' }}>
                   <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.04)', borderRadius: '16px', padding: '1.2rem', backdropFilter: 'blur(10px)' }}>
                     <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Waitlist Leads</div>
@@ -923,9 +1135,157 @@ export default function AdminPanel() {
                 </div>
               )}
 
+              {/* Tab: Analytics */}
+              {activeTab === 'analytics' && (() => {
+                const totalLeads = prebookings.length;
+                const approvedCount = prebookings.filter(p => p.approved).length;
+                const pendingCount = totalLeads - approvedCount;
+                const convRate = totalLeads > 0 ? Math.round((approvedCount / totalLeads) * 100) : 0;
+                
+                const monthlyCount = prebookings.filter(p => p.plan === 'monthly').length;
+                const annualCount = prebookings.filter(p => p.plan === 'annual').length;
+                const unspecifiedCount = totalLeads - (monthlyCount + annualCount);
+                
+                const monthlyApproved = prebookings.filter(p => p.approved && p.plan === 'monthly').length;
+                const annualApproved = prebookings.filter(p => p.approved && p.plan === 'annual').length;
+                
+                // Calculate projected monthly recurring revenue (MRR)
+                const estMRR = (monthlyApproved * config.monthlyDiscountPrice) + Math.round((annualApproved * config.annualDiscountPrice) / 12);
+                const totalRevenue = (monthlyApproved * config.monthlyDiscountPrice) + (annualApproved * config.annualDiscountPrice);
+                
+                // Calculate total clicks on referral links
+                const totalRefClicks = referrals.reduce((sum, r) => sum + (r.clicks || 0), 0);
+                const totalRefBookings = referrals.reduce((sum, r) => sum + (r.bookingsCount || 0), 0);
+                const refConvRate = totalRefClicks > 0 ? ((totalRefBookings / totalRefClicks) * 100).toFixed(1) : '0';
+
+                // Sort influencers by performance
+                const sortedReferrals = [...referrals].sort((a, b) => (b.bookingsCount || 0) - (a.bookingsCount || 0)).slice(0, 5);
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                    {/* Analytics Overview Metrics Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem' }}>
+                      <div className="form-container" style={{ padding: '1.8rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Plan Conversion Rate</span>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+                          <span style={{ fontSize: '2.5rem', fontWeight: '800', color: '#10b981' }}>{convRate}%</span>
+                          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>({approvedCount} of {totalLeads} approved)</span>
+                        </div>
+                        {/* CSS Progress Bar */}
+                        <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '3px', overflow: 'hidden', marginTop: '6px' }}>
+                          <div style={{ width: `${convRate}%`, height: '100%', background: '#10b981', borderRadius: '3px', transition: 'width 1s ease' }}></div>
+                        </div>
+                      </div>
+
+                      <div className="form-container" style={{ padding: '1.8rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Projected MRR</span>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+                          <span style={{ fontSize: '2.5rem', fontWeight: '800', color: '#bd00ff' }}>₹{estMRR.toLocaleString()}</span>
+                          <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>/ month</span>
+                        </div>
+                        <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Based on active approvals (Annual pass amortized monthly)</span>
+                      </div>
+
+                      <div className="form-container" style={{ padding: '1.8rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Total Realized Revenue</span>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+                          <span style={{ fontSize: '2.5rem', fontWeight: '800', color: '#0057ff' }}>₹{totalRevenue.toLocaleString()}</span>
+                          <span style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: '600' }}>Cash Received</span>
+                        </div>
+                        <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Gross earnings from approved monthly and annual billing passes</span>
+                      </div>
+                    </div>
+
+                    {/* Mid Charts Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '2rem' }}>
+                      {/* Subscription breakdown card */}
+                      <div className="form-container" style={{ padding: '1.8rem', display: 'flex', flexDirection: 'column', gap: '1.2rem', textAlign: 'left' }}>
+                        <h4 style={{ fontSize: '1rem', fontWeight: '800', color: '#fff', margin: 0 }}>Pass Selection Breakdown</h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                          {/* Annual bar */}
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '4px' }}>
+                              <span style={{ color: '#bd00ff', fontWeight: '600' }}>Annual Pass (Best Value)</span>
+                              <span style={{ fontWeight: '800' }}>{annualCount} ({totalLeads > 0 ? Math.round((annualCount / totalLeads) * 100) : 0}%)</span>
+                            </div>
+                            <div style={{ width: '100%', height: '8px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div style={{ width: `${totalLeads > 0 ? (annualCount / totalLeads) * 100 : 0}%`, height: '100%', background: '#bd00ff' }}></div>
+                            </div>
+                          </div>
+
+                          {/* Monthly bar */}
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '4px' }}>
+                              <span style={{ color: '#0057ff', fontWeight: '600' }}>Monthly Pass</span>
+                              <span style={{ fontWeight: '800' }}>{monthlyCount} ({totalLeads > 0 ? Math.round((monthlyCount / totalLeads) * 100) : 0}%)</span>
+                            </div>
+                            <div style={{ width: '100%', height: '8px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div style={{ width: `${totalLeads > 0 ? (monthlyCount / totalLeads) * 100 : 0}%`, height: '100%', background: '#0057ff' }}></div>
+                            </div>
+                          </div>
+
+                          {/* Unspecified bar */}
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '4px' }}>
+                              <span style={{ color: '#94a3b8', fontWeight: '600' }}>Unspecified</span>
+                              <span style={{ fontWeight: '800' }}>{unspecifiedCount} ({totalLeads > 0 ? Math.round((unspecifiedCount / totalLeads) * 100) : 0}%)</span>
+                            </div>
+                            <div style={{ width: '100%', height: '8px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div style={{ width: `${totalLeads > 0 ? (unspecifiedCount / totalLeads) * 100 : 0}%`, height: '100%', background: '#94a3b8' }}></div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1rem', marginTop: '0.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.78rem' }}>
+                          <div>
+                            <span style={{ color: '#64748b', display: 'block' }}>Monthly Approvals</span>
+                            <strong style={{ fontSize: '1rem', color: '#fff' }}>{monthlyApproved} active</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: '#64748b', display: 'block' }}>Annual Approvals</span>
+                            <strong style={{ fontSize: '1rem', color: '#fff' }}>{annualApproved} active</strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Top Influencers Card */}
+                      <div className="form-container" style={{ padding: '1.8rem', display: 'flex', flexDirection: 'column', gap: '1.2rem', textAlign: 'left' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <h4 style={{ fontSize: '1rem', fontWeight: '800', color: '#fff', margin: 0 }}>Top Referral Codes</h4>
+                          <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: '750' }}>{refConvRate}% Avg Conv</span>
+                        </div>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {sortedReferrals.length === 0 ? (
+                            <div style={{ color: '#64748b', fontSize: '0.82rem', padding: '2rem 0', textAlign: 'center' }}>No referral statistics logged.</div>
+                          ) : (
+                            sortedReferrals.map((ref) => {
+                              const conversion = ref.clicks > 0 ? Math.round((ref.bookingsCount / ref.clicks) * 100) : 0;
+                              return (
+                                <div key={ref._id} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', alignItems: 'baseline' }}>
+                                    <span style={{ fontWeight: '700', fontFamily: 'monospace', color: '#0057ff' }}>{ref.code} ({ref.name})</span>
+                                    <span style={{ color: '#94a3b8' }}>
+                                      <strong>{ref.bookingsCount}</strong> bookings / {ref.clicks} clicks ({conversion}%)
+                                    </span>
+                                  </div>
+                                  <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                                    <div style={{ width: `${Math.min(conversion, 100)}%`, height: '100%', background: 'linear-gradient(90deg, #0057ff, #bd00ff)', borderRadius: '3px' }}></div>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Tab: Leads */}
               {activeTab === 'leads' && (
-                <div style={{ background: 'rgba(255, 255, 255, 0.01)', border: '1px solid rgba(255, 255, 255, 0.04)', borderRadius: '20px', padding: '1.5rem', overflowX: 'auto', backdropFilter: 'blur(10px)' }}>
+                <div className="admin-card" style={{ overflowX: 'auto' }}>
                   <h3 style={{ marginBottom: '1.2rem', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                     <span>Early Access Waitlist Members</span>
                     <span style={{ fontSize: '0.72rem', background: 'rgba(189, 0, 255, 0.08)', color: '#bd00ff', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(189, 0, 255, 0.2)', fontWeight: 700 }}>
@@ -934,7 +1294,103 @@ export default function AdminPanel() {
                     <span style={{ fontSize: '0.72rem', background: 'rgba(239, 68, 68, 0.08)', color: '#ef4444', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.2)', fontWeight: 700 }}>
                       {prebookings.filter(p => !p.approved).length} Pending
                     </span>
+                    <span style={{ fontSize: '0.72rem', background: 'rgba(0, 87, 255, 0.08)', color: '#0057ff', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(0, 87, 255, 0.2)', fontWeight: 700 }}>
+                      {getFilteredAndSortedLeads().length} Filtered
+                    </span>
                   </h3>
+
+                  {/* Leads search, filters and sort controls */}
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '12px',
+                    marginBottom: '1.5rem',
+                    padding: '1.2rem',
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    border: '1px solid rgba(255, 255, 255, 0.04)',
+                    borderRadius: '16px'
+                  }}>
+                    <div style={{ flex: '2 1 280px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 750, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Search Leads</label>
+                      <input
+                        type="text"
+                        placeholder="Search by name, email, TradingView user, or ref code..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        style={{
+                          padding: '0.55rem 0.8rem',
+                          fontSize: '0.82rem',
+                          borderRadius: '8px',
+                          background: 'rgba(255, 255, 255, 0.03)',
+                          border: '2px solid rgba(255, 255, 255, 0.06)',
+                          color: '#fff',
+                          width: '100%'
+                        }}
+                      />
+                    </div>
+                    <div style={{ flex: '1 1 140px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 750, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Status Filter</label>
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        style={{
+                          padding: '0.55rem 0.8rem',
+                          fontSize: '0.82rem',
+                          borderRadius: '8px',
+                          background: 'rgba(255, 255, 255, 0.03)',
+                          border: '2px solid rgba(255, 255, 255, 0.06)',
+                          color: '#fff',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <option value="all">All Statuses</option>
+                        <option value="approved">Approved Only</option>
+                        <option value="pending">Pending Only</option>
+                      </select>
+                    </div>
+                    <div style={{ flex: '1 1 140px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 750, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Plan Filter</label>
+                      <select
+                        value={planFilter}
+                        onChange={(e) => setPlanFilter(e.target.value)}
+                        style={{
+                          padding: '0.55rem 0.8rem',
+                          fontSize: '0.82rem',
+                          borderRadius: '8px',
+                          background: 'rgba(255, 255, 255, 0.03)',
+                          border: '2px solid rgba(255, 255, 255, 0.06)',
+                          color: '#fff',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <option value="all">All Plans</option>
+                        <option value="monthly">Monthly Pass</option>
+                        <option value="annual">Annual Pass</option>
+                      </select>
+                    </div>
+                    <div style={{ flex: '1 1 140px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 750, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Sort By</label>
+                      <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                        style={{
+                          padding: '0.55rem 0.8rem',
+                          fontSize: '0.82rem',
+                          borderRadius: '8px',
+                          background: 'rgba(255, 255, 255, 0.03)',
+                          border: '2px solid rgba(255, 255, 255, 0.06)',
+                          color: '#fff',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <option value="dateDesc">Newest First</option>
+                        <option value="dateAsc">Oldest First</option>
+                        <option value="nameAsc">Name A-Z</option>
+                        <option value="planValDesc">Plan Value</option>
+                      </select>
+                    </div>
+                  </div>
+
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
                     <thead>
                       <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)', color: '#64748b' }}>
@@ -950,12 +1406,12 @@ export default function AdminPanel() {
                       </tr>
                     </thead>
                     <tbody>
-                      {prebookings.length === 0 ? (
+                      {getFilteredAndSortedLeads().length === 0 ? (
                         <tr>
-                          <td colSpan="9" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>No waitlist entries found yet.</td>
+                          <td colSpan="9" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>No waitlist entries found matching filters.</td>
                         </tr>
                       ) : (
-                        prebookings.map((lead) => (
+                        getFilteredAndSortedLeads().map((lead) => (
                           <tr key={lead._id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.03)', transition: 'background 0.3s' }}>
                             <td style={{ padding: '0.8rem', fontWeight: 600 }}>{lead.name}</td>
                             <td style={{ padding: '0.8rem', color: '#94a3b8' }}>{lead.email}</td>
@@ -1014,7 +1470,7 @@ export default function AdminPanel() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem', alignItems: 'start' }} className="admin-referrals-grid">
                   
                   {/* Active links list */}
-                  <div style={{ background: 'rgba(255, 255, 255, 0.01)', border: '1px solid rgba(255, 255, 255, 0.04)', borderRadius: '20px', padding: '1.5rem', overflowX: 'auto', backdropFilter: 'blur(10px)' }}>
+                  <div className="admin-card" style={{ overflowX: 'auto' }}>
                     <h3 style={{ marginBottom: '1.2rem', fontSize: '1.1rem' }}>Active Influencer Links</h3>
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
                       <thead>
@@ -1057,7 +1513,7 @@ export default function AdminPanel() {
                   </div>
 
                   {/* Referral Creator */}
-                  <div className="form-container" style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.04)', padding: '1.5rem', width: '100%', textAlign: 'left', backdropFilter: 'blur(10px)' }}>
+                  <div className="admin-card" style={{ width: '100%', textAlign: 'left' }}>
                     <h3 style={{ fontSize: '1.10rem', color: '#fff', marginBottom: '0.4rem', fontWeight: 800 }}>Create Referral Link</h3>
                     <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '1.2rem', lineHeight: '1.3' }}>Enter details below to generate a trackable referral code link for an influencer.</p>
                     <form onSubmit={handleCreateReferral} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -1110,7 +1566,7 @@ export default function AdminPanel() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem', alignItems: 'start' }}>
                   
                   {/* Indicators Table List */}
-                  <div style={{ background: 'rgba(255, 255, 255, 0.01)', border: '1px solid rgba(255, 255, 255, 0.04)', borderRadius: '20px', padding: '1.5rem', overflowX: 'auto', backdropFilter: 'blur(10px)', gridColumn: 'span 2' }}>
+                  <div className="admin-card" style={{ overflowX: 'auto', gridColumn: 'span 2' }}>
                     <h3 style={{ marginBottom: '1.2rem', fontSize: '1.1rem' }}>Active Indicators List</h3>
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
                       <thead>
@@ -1170,7 +1626,7 @@ export default function AdminPanel() {
                   </div>
 
                   {/* Indicator Settings Editor (if active) OR Creator Form */}
-                  <div className="form-container" style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.04)', padding: '1.5rem', width: '100%', textAlign: 'left', backdropFilter: 'blur(10px)' }}>
+                  <div className="admin-card" style={{ width: '100%', textAlign: 'left' }}>
                     {editingIndicator ? (
                       <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
@@ -1229,7 +1685,7 @@ export default function AdminPanel() {
                             </div>
                           </div>
 
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                             <div className="form-group" style={{ marginBottom: 0 }}>
                               <label style={{ fontSize: '0.7rem' }}>Monthly Strike (₹)</label>
                               <input
@@ -1241,6 +1697,22 @@ export default function AdminPanel() {
                               />
                             </div>
                             <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.7rem' }}>Monthly Discount %</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={getDiscountPercent(editingIndicator.monthlyStrikePrice, editingIndicator.monthlyDiscountPrice)}
+                                onChange={(e) => {
+                                  const pct = Number(e.target.value) || 0;
+                                  const strike = Number(editingIndicator.monthlyStrikePrice) || 0;
+                                  const disc = strike - Math.round(strike * (pct / 100));
+                                  setEditingIndicator({ ...editingIndicator, monthlyDiscountPrice: disc });
+                                }}
+                                style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px', background: 'rgba(189, 0, 255, 0.05)', borderColor: 'rgba(189,0,255,0.2)' }}
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
                               <label style={{ fontSize: '0.7rem' }}>Monthly Discounted (₹)</label>
                               <input
                                 type="number"
@@ -1249,10 +1721,11 @@ export default function AdminPanel() {
                                 onChange={(e) => setEditingIndicator({ ...editingIndicator, monthlyDiscountPrice: Number(e.target.value) })}
                                 style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
                               />
+                              {renderSavingsLabel(editingIndicator.monthlyStrikePrice, editingIndicator.monthlyDiscountPrice)}
                             </div>
                           </div>
 
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                             <div className="form-group" style={{ marginBottom: 0 }}>
                               <label style={{ fontSize: '0.7rem' }}>Annual Strike (₹)</label>
                               <input
@@ -1264,6 +1737,22 @@ export default function AdminPanel() {
                               />
                             </div>
                             <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.7rem' }}>Annual Discount %</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={getDiscountPercent(editingIndicator.annualStrikePrice, editingIndicator.annualDiscountPrice)}
+                                onChange={(e) => {
+                                  const pct = Number(e.target.value) || 0;
+                                  const strike = Number(editingIndicator.annualStrikePrice) || 0;
+                                  const disc = strike - Math.round(strike * (pct / 100));
+                                  setEditingIndicator({ ...editingIndicator, annualDiscountPrice: disc });
+                                }}
+                                style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px', background: 'rgba(189, 0, 255, 0.05)', borderColor: 'rgba(189,0,255,0.2)' }}
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
                               <label style={{ fontSize: '0.7rem' }}>Annual Discounted (₹)</label>
                               <input
                                 type="number"
@@ -1272,6 +1761,7 @@ export default function AdminPanel() {
                                 onChange={(e) => setEditingIndicator({ ...editingIndicator, annualDiscountPrice: Number(e.target.value) })}
                                 style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
                               />
+                              {renderSavingsLabel(editingIndicator.annualStrikePrice, editingIndicator.annualDiscountPrice)}
                             </div>
                           </div>
 
@@ -1349,15 +1839,31 @@ export default function AdminPanel() {
                             </div>
                           </div>
 
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                             <div className="form-group" style={{ marginBottom: 0 }}>
                               <label style={{ fontSize: '0.7rem' }}>Monthly Strike (₹)</label>
                               <input
                                 type="number"
                                 required
                                 value={newIndicator.monthlyStrikePrice}
-                                onChange={(e) => setNewIndicator({ ...newIndicator, monthlyStrikePrice: e.target.value })}
+                                onChange={(e) => setNewIndicator({ ...newIndicator, monthlyStrikePrice: Number(e.target.value) })}
                                 style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.7rem' }}>Monthly Discount %</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={getDiscountPercent(newIndicator.monthlyStrikePrice, newIndicator.monthlyDiscountPrice)}
+                                onChange={(e) => {
+                                  const pct = Number(e.target.value) || 0;
+                                  const strike = Number(newIndicator.monthlyStrikePrice) || 0;
+                                  const disc = strike - Math.round(strike * (pct / 100));
+                                  setNewIndicator({ ...newIndicator, monthlyDiscountPrice: disc });
+                                }}
+                                style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px', background: 'rgba(189, 0, 255, 0.05)', borderColor: 'rgba(189,0,255,0.2)' }}
                               />
                             </div>
                             <div className="form-group" style={{ marginBottom: 0 }}>
@@ -1366,21 +1872,38 @@ export default function AdminPanel() {
                                 type="number"
                                 required
                                 value={newIndicator.monthlyDiscountPrice}
-                                onChange={(e) => setNewIndicator({ ...newIndicator, monthlyDiscountPrice: e.target.value })}
+                                onChange={(e) => setNewIndicator({ ...newIndicator, monthlyDiscountPrice: Number(e.target.value) })}
                                 style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
                               />
+                              {renderSavingsLabel(newIndicator.monthlyStrikePrice, newIndicator.monthlyDiscountPrice)}
                             </div>
                           </div>
 
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                             <div className="form-group" style={{ marginBottom: 0 }}>
                               <label style={{ fontSize: '0.7rem' }}>Annual Strike (₹)</label>
                               <input
                                 type="number"
                                 required
                                 value={newIndicator.annualStrikePrice}
-                                onChange={(e) => setNewIndicator({ ...newIndicator, annualStrikePrice: e.target.value })}
+                                onChange={(e) => setNewIndicator({ ...newIndicator, annualStrikePrice: Number(e.target.value) })}
                                 style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.7rem' }}>Annual Discount %</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={getDiscountPercent(newIndicator.annualStrikePrice, newIndicator.annualDiscountPrice)}
+                                onChange={(e) => {
+                                  const pct = Number(e.target.value) || 0;
+                                  const strike = Number(newIndicator.annualStrikePrice) || 0;
+                                  const disc = strike - Math.round(strike * (pct / 100));
+                                  setNewIndicator({ ...newIndicator, annualDiscountPrice: disc });
+                                }}
+                                style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px', background: 'rgba(189, 0, 255, 0.05)', borderColor: 'rgba(189,0,255,0.2)' }}
                               />
                             </div>
                             <div className="form-group" style={{ marginBottom: 0 }}>
@@ -1389,9 +1912,10 @@ export default function AdminPanel() {
                                 type="number"
                                 required
                                 value={newIndicator.annualDiscountPrice}
-                                onChange={(e) => setNewIndicator({ ...newIndicator, annualDiscountPrice: e.target.value })}
+                                onChange={(e) => setNewIndicator({ ...newIndicator, annualDiscountPrice: Number(e.target.value) })}
                                 style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
                               />
+                              {renderSavingsLabel(newIndicator.annualStrikePrice, newIndicator.annualDiscountPrice)}
                             </div>
                           </div>
 
@@ -1418,12 +1942,12 @@ export default function AdminPanel() {
 
               {/* Tab: Web config settings */}
               {activeTab === 'config' && (
-                <div style={{ maxWidth: '560px', background: 'rgba(255, 255, 255, 0.01)', border: '1px solid rgba(255, 255, 255, 0.04)', borderRadius: '20px', padding: '2rem', backdropFilter: 'blur(10px)' }}>
+                <div className="admin-card" style={{ maxWidth: '560px' }}>
                   <h3 style={{ marginBottom: '0.4rem', fontSize: '1.2rem', fontWeight: 800 }}>Manage Pricing & Indicator Access</h3>
                   <p style={{ color: '#64748b', fontSize: '0.8rem', marginBottom: '1.8rem' }}>Modify system configurations below. These instantly update prices and checkout text across the website.</p>
                   
                   <form onSubmit={handleSaveConfig} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label style={{ fontSize: '0.7rem' }}>Monthly Strike Price (₹)</label>
                         <input
@@ -1432,7 +1956,23 @@ export default function AdminPanel() {
                           placeholder="399"
                           style={{ padding: '0.5rem 0.8rem', fontSize: '0.82rem', borderRadius: '8px' }}
                           value={newPricing.monthlyStrikePrice}
-                          onChange={(e) => setNewPricing({ ...newPricing, monthlyStrikePrice: e.target.value })}
+                          onChange={(e) => setNewPricing({ ...newPricing, monthlyStrikePrice: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label style={{ fontSize: '0.7rem' }}>Monthly Discount %</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={getDiscountPercent(newPricing.monthlyStrikePrice, newPricing.monthlyDiscountPrice)}
+                          onChange={(e) => {
+                            const pct = Number(e.target.value) || 0;
+                            const strike = Number(newPricing.monthlyStrikePrice) || 0;
+                            const disc = strike - Math.round(strike * (pct / 100));
+                            setNewPricing({ ...newPricing, monthlyDiscountPrice: disc });
+                          }}
+                          style={{ padding: '0.5rem 0.8rem', fontSize: '0.82rem', borderRadius: '8px', background: 'rgba(189, 0, 255, 0.05)', borderColor: 'rgba(189,0,255,0.2)' }}
                         />
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
@@ -1443,12 +1983,13 @@ export default function AdminPanel() {
                           placeholder="299"
                           style={{ padding: '0.5rem 0.8rem', fontSize: '0.82rem', borderRadius: '8px' }}
                           value={newPricing.monthlyDiscountPrice}
-                          onChange={(e) => setNewPricing({ ...newPricing, monthlyDiscountPrice: e.target.value })}
+                          onChange={(e) => setNewPricing({ ...newPricing, monthlyDiscountPrice: Number(e.target.value) })}
                         />
+                        {renderSavingsLabel(newPricing.monthlyStrikePrice, newPricing.monthlyDiscountPrice)}
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label style={{ fontSize: '0.7rem' }}>Annual Strike Price (₹)</label>
                         <input
@@ -1457,7 +1998,23 @@ export default function AdminPanel() {
                           placeholder="1200"
                           style={{ padding: '0.5rem 0.8rem', fontSize: '0.82rem', borderRadius: '8px' }}
                           value={newPricing.annualStrikePrice}
-                          onChange={(e) => setNewPricing({ ...newPricing, annualStrikePrice: e.target.value })}
+                          onChange={(e) => setNewPricing({ ...newPricing, annualStrikePrice: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label style={{ fontSize: '0.7rem' }}>Annual Discount %</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={getDiscountPercent(newPricing.annualStrikePrice, newPricing.annualDiscountPrice)}
+                          onChange={(e) => {
+                            const pct = Number(e.target.value) || 0;
+                            const strike = Number(newPricing.annualStrikePrice) || 0;
+                            const disc = strike - Math.round(strike * (pct / 100));
+                            setNewPricing({ ...newPricing, annualDiscountPrice: disc });
+                          }}
+                          style={{ padding: '0.5rem 0.8rem', fontSize: '0.82rem', borderRadius: '8px', background: 'rgba(189, 0, 255, 0.05)', borderColor: 'rgba(189,0,255,0.2)' }}
                         />
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
@@ -1468,8 +2025,9 @@ export default function AdminPanel() {
                           placeholder="999"
                           style={{ padding: '0.5rem 0.8rem', fontSize: '0.82rem', borderRadius: '8px' }}
                           value={newPricing.annualDiscountPrice}
-                          onChange={(e) => setNewPricing({ ...newPricing, annualDiscountPrice: e.target.value })}
+                          onChange={(e) => setNewPricing({ ...newPricing, annualDiscountPrice: Number(e.target.value) })}
                         />
+                        {renderSavingsLabel(newPricing.annualStrikePrice, newPricing.annualDiscountPrice)}
                       </div>
                     </div>
 
@@ -1515,6 +2073,39 @@ export default function AdminPanel() {
                       </span>
                     </div>
 
+                    <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', color: '#fff' }}>
+                        <span>⚠️ System Maintenance Mode</span>
+                        <span style={{
+                          fontSize: '0.65rem',
+                          background: newPricing.maintenanceMode ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                          color: newPricing.maintenanceMode ? '#ef4444' : '#10b981',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          fontWeight: 700
+                        }}>
+                          {newPricing.maintenanceMode ? 'ACTIVE (BLOCKING ACCESS)' : 'INACTIVE (NORMAL ACCESS)'}
+                        </span>
+                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px' }}>
+                        <input
+                          type="checkbox"
+                          id="maintenanceMode"
+                          style={{
+                            width: '20px',
+                            height: '20px',
+                            cursor: 'pointer',
+                            accentColor: '#bd00ff'
+                          }}
+                          checked={newPricing.maintenanceMode || false}
+                          onChange={(e) => setNewPricing({ ...newPricing, maintenanceMode: e.target.checked })}
+                        />
+                        <label htmlFor="maintenanceMode" style={{ fontSize: '0.78rem', color: '#94a3b8', cursor: 'pointer', fontWeight: 'normal', userSelect: 'none' }}>
+                          Enable maintenance mode to block user access to the website and display a maintenance notice screen.
+                        </label>
+                      </div>
+                    </div>
+
                     <button type="submit" className="btn-primary" style={{ padding: '0.75rem', fontSize: '0.85rem', borderRadius: '8px', marginTop: '0.5rem' }} disabled={loading}>
                       {loading ? 'Saving configuration...' : 'Save Configuration settings'}
                     </button>
@@ -1522,9 +2113,228 @@ export default function AdminPanel() {
                 </div>
               )}
 
+              {/* Tab: Website CMS Settings */}
+              {activeTab === 'cms' && (
+                <div className="admin-card">
+                  <h3 style={{ marginBottom: '0.4rem', fontSize: '1.2rem', fontWeight: 800 }}>Website CMS Copy Settings</h3>
+                  <p style={{ color: '#64748b', fontSize: '0.8rem', marginBottom: '1.8rem' }}>Modify any text copy, stats numbers, FAQs, or reviews shown on the landing page.</p>
+                  
+                  <form onSubmit={handleSaveCmsContent} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    {/* Section: Hero Slide 1 */}
+                    <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '1.5rem' }}>
+                      <h4 style={{ color: '#bd00ff', marginBottom: '1rem', fontSize: '0.95rem', fontWeight: 800 }}>Hero Slide 1 Copy</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.7rem' }}>Badge Label</label>
+                          <input type="text" value={cmsContent.heroBadge || ''} onChange={(e) => setCmsContent({...cmsContent, heroBadge: e.target.value})} style={{ padding: '0.5rem 0.8rem', fontSize: '0.82rem', borderRadius: '8px' }} />
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.7rem' }}>Title Highlight (Purple)</label>
+                          <input type="text" value={cmsContent.heroTitle1 || ''} onChange={(e) => setCmsContent({...cmsContent, heroTitle1: e.target.value})} style={{ padding: '0.5rem 0.8rem', fontSize: '0.82rem', borderRadius: '8px' }} />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.7rem' }}>Title Rest (White)</label>
+                          <input type="text" value={cmsContent.heroTitle2 || ''} onChange={(e) => setCmsContent({...cmsContent, heroTitle2: e.target.value})} style={{ padding: '0.5rem 0.8rem', fontSize: '0.82rem', borderRadius: '8px' }} />
+                        </div>
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label style={{ fontSize: '0.7rem' }}>Slide 1 Description</label>
+                        <textarea rows="3" value={cmsContent.heroDesc || ''} onChange={(e) => setCmsContent({...cmsContent, heroDesc: e.target.value})} style={{ padding: '0.5rem 0.8rem', fontSize: '0.82rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '2px solid rgba(255,255,255,0.06)', color: '#fff', width: '100%' }} />
+                      </div>
+                    </div>
+
+                    {/* Section: Hero Slide 2 */}
+                    <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '1.5rem' }}>
+                      <h4 style={{ color: '#bd00ff', marginBottom: '1rem', fontSize: '0.95rem', fontWeight: 800 }}>Hero Slide 2 Copy (Featured Indicator Slide)</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.7rem' }}>Badge Label</label>
+                          <input type="text" value={cmsContent.heroSlide2Badge || ''} onChange={(e) => setCmsContent({...cmsContent, heroSlide2Badge: e.target.value})} style={{ padding: '0.5rem 0.8rem', fontSize: '0.82rem', borderRadius: '8px' }} />
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.7rem' }}>Title Highlight (Purple)</label>
+                          <input type="text" value={cmsContent.heroSlide2Title1 || ''} onChange={(e) => setCmsContent({...cmsContent, heroSlide2Title1: e.target.value})} style={{ padding: '0.5rem 0.8rem', fontSize: '0.82rem', borderRadius: '8px' }} />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.7rem' }}>Title Rest (White)</label>
+                          <input type="text" value={cmsContent.heroSlide2Title2 || ''} onChange={(e) => setCmsContent({...cmsContent, heroSlide2Title2: e.target.value})} style={{ padding: '0.5rem 0.8rem', fontSize: '0.82rem', borderRadius: '8px' }} />
+                        </div>
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label style={{ fontSize: '0.7rem' }}>Slide 2 Description</label>
+                        <textarea rows="3" value={cmsContent.heroSlide2Desc || ''} onChange={(e) => setCmsContent({...cmsContent, heroSlide2Desc: e.target.value})} style={{ padding: '0.5rem 0.8rem', fontSize: '0.82rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '2px solid rgba(255,255,255,0.06)', color: '#fff', width: '100%' }} />
+                      </div>
+                    </div>
+
+                    {/* Section: Platform Metrics */}
+                    <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '1.5rem' }}>
+                      <h4 style={{ color: '#bd00ff', marginBottom: '1rem', fontSize: '0.95rem', fontWeight: 800 }}>Model Accuracy & Statistics</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '1rem', marginBottom: '1rem' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.7rem' }}>Model Accuracy Radial Value (%)</label>
+                          <input type="number" min="0" max="100" value={cmsContent.accuracyValue || 0} onChange={(e) => setCmsContent({...cmsContent, accuracyValue: Number(e.target.value)})} style={{ padding: '0.5rem 0.8rem', fontSize: '0.82rem', borderRadius: '8px' }} />
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.65rem' }}>Stat 1 Metric (e.g. 730K)</label>
+                          <input type="text" value={cmsContent.stat1Num || ''} onChange={(e) => setCmsContent({...cmsContent, stat1Num: e.target.value})} style={{ padding: '0.4rem 0.6rem', fontSize: '0.78rem', borderRadius: '8px' }} />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.65rem' }}>Stat 1 Label</label>
+                          <input type="text" value={cmsContent.stat1Label || ''} onChange={(e) => setCmsContent({...cmsContent, stat1Label: e.target.value})} style={{ padding: '0.4rem 0.6rem', fontSize: '0.78rem', borderRadius: '8px' }} />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.65rem' }}>Stat 1 Description</label>
+                          <input type="text" value={cmsContent.stat1Desc || ''} onChange={(e) => setCmsContent({...cmsContent, stat1Desc: e.target.value})} style={{ padding: '0.4rem 0.6rem', fontSize: '0.78rem', borderRadius: '8px' }} />
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.65rem' }}>Stat 2 Metric (e.g. 94%)</label>
+                          <input type="text" value={cmsContent.stat2Num || ''} onChange={(e) => setCmsContent({...cmsContent, stat2Num: e.target.value})} style={{ padding: '0.4rem 0.6rem', fontSize: '0.78rem', borderRadius: '8px' }} />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.65rem' }}>Stat 2 Label</label>
+                          <input type="text" value={cmsContent.stat2Label || ''} onChange={(e) => setCmsContent({...cmsContent, stat2Label: e.target.value})} style={{ padding: '0.4rem 0.6rem', fontSize: '0.78rem', borderRadius: '8px' }} />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.65rem' }}>Stat 2 Description</label>
+                          <input type="text" value={cmsContent.stat2Desc || ''} onChange={(e) => setCmsContent({...cmsContent, stat2Desc: e.target.value})} style={{ padding: '0.4rem 0.6rem', fontSize: '0.78rem', borderRadius: '8px' }} />
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.65rem' }}>Stat 3 Metric (e.g. 12K+)</label>
+                          <input type="text" value={cmsContent.stat3Num || ''} onChange={(e) => setCmsContent({...cmsContent, stat3Num: e.target.value})} style={{ padding: '0.4rem 0.6rem', fontSize: '0.78rem', borderRadius: '8px' }} />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.65rem' }}>Stat 3 Label</label>
+                          <input type="text" value={cmsContent.stat3Label || ''} onChange={(e) => setCmsContent({...cmsContent, stat3Label: e.target.value})} style={{ padding: '0.4rem 0.6rem', fontSize: '0.78rem', borderRadius: '8px' }} />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label style={{ fontSize: '0.65rem' }}>Stat 3 Description</label>
+                          <input type="text" value={cmsContent.stat3Desc || ''} onChange={(e) => setCmsContent({...cmsContent, stat3Desc: e.target.value})} style={{ padding: '0.4rem 0.6rem', fontSize: '0.78rem', borderRadius: '8px' }} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section: FAQs Manager */}
+                    <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '1.5rem' }}>
+                      <h4 style={{ color: '#bd00ff', marginBottom: '1rem', fontSize: '0.95rem', fontWeight: 800 }}>Frequently Asked Questions</h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '1.5rem' }}>
+                        {cmsContent.faqs && cmsContent.faqs.map((faq, index) => (
+                          <div key={index} style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                              <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700 }}>FAQ #{index + 1}</span>
+                              <button type="button" onClick={() => {
+                                const list = [...cmsContent.faqs];
+                                list.splice(index, 1);
+                                setCmsContent({...cmsContent, faqs: list});
+                              }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}>Remove</button>
+                            </div>
+                            <div className="form-group" style={{ marginBottom: '8px' }}>
+                              <label style={{ fontSize: '0.65rem' }}>Question</label>
+                              <input type="text" value={faq.q || ''} onChange={(e) => {
+                                const list = [...cmsContent.faqs];
+                                list[index].q = e.target.value;
+                                setCmsContent({...cmsContent, faqs: list});
+                              }} style={{ padding: '0.4rem 0.6rem', fontSize: '0.78rem', borderRadius: '6px' }} />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.65rem' }}>Answer</label>
+                              <textarea rows="2" value={faq.a || ''} onChange={(e) => {
+                                const list = [...cmsContent.faqs];
+                                list[index].a = e.target.value;
+                                setCmsContent({...cmsContent, faqs: list});
+                              }} style={{ padding: '0.4rem 0.6rem', fontSize: '0.78rem', borderRadius: '6px', background: 'rgba(255,255,255,0.03)', border: '2px solid rgba(255,255,255,0.06)', color: '#fff', width: '100%' }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <button type="button" onClick={() => {
+                        const list = cmsContent.faqs ? [...cmsContent.faqs] : [];
+                        list.push({ q: '', a: '' });
+                        setCmsContent({...cmsContent, faqs: list});
+                      }} className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.78rem', borderRadius: '8px' }}>
+                        + Add New FAQ Item
+                      </button>
+                    </div>
+
+                    {/* Section: Reviews Manager */}
+                    <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '1.5rem' }}>
+                      <h4 style={{ color: '#bd00ff', marginBottom: '1rem', fontSize: '0.95rem', fontWeight: 800 }}>Subscriber Reviews</h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '1.5rem' }}>
+                        {cmsContent.reviews && cmsContent.reviews.map((rev, index) => (
+                          <div key={index} style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                              <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700 }}>Review #{index + 1}</span>
+                              <button type="button" onClick={() => {
+                                const list = [...cmsContent.reviews];
+                                list.splice(index, 1);
+                                setCmsContent({...cmsContent, reviews: list});
+                              }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}>Remove</button>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                              <div className="form-group" style={{ marginBottom: 0 }}>
+                                <label style={{ fontSize: '0.65rem' }}>User Tag (e.g. @Mishatrading)</label>
+                                <input type="text" value={rev.user || ''} onChange={(e) => {
+                                  const list = [...cmsContent.reviews];
+                                  list[index].user = e.target.value;
+                                  setCmsContent({...cmsContent, reviews: list});
+                                }} style={{ padding: '0.4rem 0.6rem', fontSize: '0.78rem', borderRadius: '6px' }} />
+                              </div>
+                              <div className="form-group" style={{ marginBottom: 0 }}>
+                                <label style={{ fontSize: '0.65rem' }}>User Initials Avatar</label>
+                                <input type="text" maxLength="2" value={rev.avatar || ''} onChange={(e) => {
+                                  const list = [...cmsContent.reviews];
+                                  list[index].avatar = e.target.value.toUpperCase();
+                                  setCmsContent({...cmsContent, reviews: list});
+                                }} style={{ padding: '0.4rem 0.6rem', fontSize: '0.78rem', borderRadius: '6px', textAlign: 'center' }} />
+                              </div>
+                              <div className="form-group" style={{ marginBottom: 0 }}>
+                                <label style={{ fontSize: '0.65rem' }}>Role/Title (e.g. Pro Trader)</label>
+                                <input type="text" value={rev.role || ''} onChange={(e) => {
+                                  const list = [...cmsContent.reviews];
+                                  list[index].role = e.target.value;
+                                  setCmsContent({...cmsContent, reviews: list});
+                                }} style={{ padding: '0.4rem 0.6rem', fontSize: '0.78rem', borderRadius: '6px' }} />
+                              </div>
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.65rem' }}>Review Quote</label>
+                              <textarea rows="2" value={rev.quote || ''} onChange={(e) => {
+                                const list = [...cmsContent.reviews];
+                                list[index].quote = e.target.value;
+                                setCmsContent({...cmsContent, reviews: list});
+                              }} style={{ padding: '0.4rem 0.6rem', fontSize: '0.78rem', borderRadius: '6px', background: 'rgba(255,255,255,0.03)', border: '2px solid rgba(255,255,255,0.06)', color: '#fff', width: '100%' }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <button type="button" onClick={() => {
+                        const list = cmsContent.reviews ? [...cmsContent.reviews] : [];
+                        list.push({ quote: '', user: '', avatar: '', role: '' });
+                        setCmsContent({...cmsContent, reviews: list});
+                      }} className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.78rem', borderRadius: '8px' }}>
+                        + Add New Review Item
+                      </button>
+                    </div>
+
+                    <button type="submit" className="btn-primary" style={{ padding: '0.8rem', fontSize: '0.85rem', borderRadius: '8px', marginTop: '0.5rem' }} disabled={loading}>
+                      {loading ? 'Saving CMS Settings...' : 'Save CMS Configurations'}
+                    </button>
+                  </form>
+                </div>
+              )}
+
               {/* Tab: Profile */}
               {activeTab === 'profile' && (
-                <div style={{ maxWidth: '560px', background: 'rgba(255, 255, 255, 0.01)', border: '1px solid rgba(255, 255, 255, 0.04)', borderRadius: '20px', padding: '2rem', backdropFilter: 'blur(10px)' }}>
+                <div className="admin-card" style={{ maxWidth: '560px' }}>
                   <h3 style={{ marginBottom: '0.4rem', fontSize: '1.2rem', fontWeight: 800 }}>Update Admin Credentials</h3>
                   <p style={{ color: '#64748b', fontSize: '0.8rem', marginBottom: '1.8rem' }}>
                     Modify your primary administrator login credentials below. A dynamic security verification code (OTP) will be dispatched to your current email address (<strong>{currentAdminEmail}</strong>) to confirm the changes.
@@ -1546,6 +2356,7 @@ export default function AdminPanel() {
                       <input
                         type="email"
                         placeholder="Enter new email (e.g. admin@cipertrade.com)"
+                        autocomplete="off"
                         style={{ padding: '0.5rem 0.8rem', fontSize: '0.82rem', borderRadius: '8px' }}
                         value={newAdminEmail}
                         onChange={(e) => setNewAdminEmail(e.target.value)}
@@ -1557,6 +2368,7 @@ export default function AdminPanel() {
                       <input
                         type="password"
                         placeholder="Enter new admin password"
+                        autocomplete="off"
                         style={{ padding: '0.5rem 0.8rem', fontSize: '0.82rem', borderRadius: '8px' }}
                         value={newAdminPassword}
                         onChange={(e) => setNewAdminPassword(e.target.value)}
@@ -1568,6 +2380,7 @@ export default function AdminPanel() {
                       <input
                         type="password"
                         placeholder="Enter new 10-digit security PIN"
+                        autocomplete="off"
                         style={{ padding: '0.5rem 0.8rem', fontSize: '0.82rem', borderRadius: '8px' }}
                         value={newAdminPin}
                         onChange={(e) => setNewAdminPin(e.target.value)}
@@ -1587,16 +2400,17 @@ export default function AdminPanel() {
                     ) : (
                       <>
                         <div className="form-group" style={{ marginBottom: 0, border: '1px solid rgba(189, 0, 255, 0.25)', padding: '1rem', borderRadius: '12px', background: 'rgba(189, 0, 255, 0.02)' }}>
-                          <label style={{ fontSize: '0.7rem', color: '#bd00ff' }}>Security OTP Code</label>
-                          <input
-                            type="text"
-                            required
-                            maxLength="6"
-                            placeholder="Enter 6-digit OTP code"
-                            style={{ padding: '0.5rem 0.8rem', fontSize: '0.9rem', borderRadius: '8px', textAlign: 'center', letterSpacing: '4px', fontWeight: 'bold' }}
-                            value={profileOtp}
-                            onChange={(e) => setProfileOtp(e.target.value)}
-                          />
+                           <label style={{ fontSize: '0.7rem', color: '#bd00ff' }}>Security OTP Code</label>
+                           <input
+                             type="text"
+                             required
+                             autocomplete="off"
+                             maxLength="6"
+                             placeholder="Enter 6-digit OTP code"
+                             style={{ padding: '0.5rem 0.8rem', fontSize: '0.9rem', borderRadius: '8px', textAlign: 'center', letterSpacing: '4px', fontWeight: 'bold' }}
+                             value={profileOtp}
+                             onChange={(e) => setProfileOtp(e.target.value)}
+                           />
                           <span style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '6px', display: 'inline-block' }}>
                             Check your current inbox for the verification key.
                           </span>

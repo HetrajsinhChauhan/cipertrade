@@ -68,7 +68,7 @@ const prebookingSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
-});
+}, { strict: true });
 
 // Dynamic configuration schema (prices, discounts, and indicator mode)
 const configSchema = new mongoose.Schema({
@@ -102,8 +102,12 @@ const configSchema = new mongoose.Schema({
   countdownTargetDate: {
     type: Date,
     default: null
+  },
+  maintenanceMode: {
+    type: Boolean,
+    default: false
   }
-});
+}, { strict: true });
 
 // Influencer referral tracking schema
 const referralSchema = new mongoose.Schema({
@@ -134,7 +138,7 @@ const referralSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
-});
+}, { strict: true });
 
 const adminSchema = new mongoose.Schema({
   email: {
@@ -152,7 +156,7 @@ const adminSchema = new mongoose.Schema({
     type: String,
     default: '1920062715'
   }
-});
+}, { strict: true });
 
 const indicatorSchema = new mongoose.Schema({
   title: {
@@ -201,25 +205,109 @@ const indicatorSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
-});
+}, { strict: true });
+
+const webContentSchema = new mongoose.Schema({
+  key: {
+    type: String,
+    required: true,
+    unique: true,
+    default: 'landing_page_copy'
+  },
+  heroBadge: { type: String, default: 'Ciper AI Platform' },
+  heroTitle1: { type: String, default: 'Automate' },
+  heroTitle2: { type: String, default: 'Your Market Edge' },
+  heroDesc: { type: String, default: 'Ciper uses advanced neural networks to map out the market in real-time. Detects support/resistance zones, high-probability convergence areas, and breakouts automatically.' },
+  
+  heroSlide2Badge: { type: String, default: 'Featured Indicator' },
+  heroSlide2Title1: { type: String, default: 'Ciper TL' },
+  heroSlide2Title2: { type: String, default: 'Trend Scanner' },
+  heroSlide2Desc: { type: String, default: 'Automatically plot high-probability trend lines and identify chart pattern breakout zones in higher timeframes (H1, H4, D1).' },
+
+  accuracyValue: { type: Number, default: 94 },
+  
+  stat1Num: { type: String, default: '730K' },
+  stat1Label: { type: String, default: 'Calculations/sec' },
+  stat1Desc: { type: String, default: 'Real-time compute nodes analyzing micro-structure changes.' },
+  
+  stat2Num: { type: String, default: '94%' },
+  stat2Label: { type: String, default: 'Model Accuracy' },
+  stat2Desc: { type: String, default: 'Historical test results on multi-timeframe breakouts.' },
+  
+  stat3Num: { type: String, default: '12K+' },
+  stat3Label: { type: String, default: 'Global Backtests' },
+  stat3Desc: { type: String, default: 'Simulated market cycles across major tokens and assets.' },
+  
+  faqs: {
+    type: Array,
+    default: [
+      { q: "How does Ciper detect pattern zones?", a: "Ciper scans historical and real-time candlestick data across multiple timeframes, calculating mathematical standard deviations and liquidity imbalances to map pattern zones." },
+      { q: "Is Ciper suitable for beginners?", a: "Yes. Ciper takes complex institutional concepts (like support/resistance nodes and multi-indicator convergence) and translates them into simple, clean visual cues on your chart." },
+      { q: "Which assets and platforms does Ciper support?", a: "Ciper works across major asset classes including Cryptocurrencies, Forex, and Stocks. It is designed to integrate seamlessly with major charting platforms like TradingView." },
+      { q: "What does the early access waitlist include?", a: "Joining the waitlist secures your early access slot, exclusive discounted pricing upon launch, and access to private beta testing groups." }
+    ]
+  },
+  
+  reviews: {
+    type: Array,
+    default: [
+      { quote: "Works like absolute magic. The neural pattern scanner marks structural zones in seconds. Completely optimized my entries and exit speeds.", user: "@Mishatrading", avatar: "MT", role: "Pro Crypto Trader" },
+      { quote: "The auto support & resistance overlays are incredibly precise. It maps liquidity pools exactly where institutional orders sit. Highly recommend.", user: "@NazarBuch", avatar: "NB", role: "Forex Specialist" },
+      { quote: "Ciper's convergence metrics have saved me hours of analysis. Seeing multiple mathematical indicators align in real-time is a complete cheat code.", user: "@CryptoApex", avatar: "CA", role: "Equity Analyst" }
+    ]
+  }
+}, { strict: true });
+
+const refreshTokenSchema = new mongoose.Schema({
+  token: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  email: {
+    type: String,
+    required: true
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+    expires: 7 * 24 * 60 * 60 // automatic TTL expiration after 7 days
+  }
+}, { strict: true });
 
 const Prebooking = mongoose.model('Prebooking', prebookingSchema);
 const Config = mongoose.model('Config', configSchema);
 const Referral = mongoose.model('Referral', referralSchema);
 const Admin = mongoose.model('Admin', adminSchema);
 const Indicator = mongoose.model('Indicator', indicatorSchema);
+const WebContent = mongoose.model('WebContent', webContentSchema);
+const RefreshToken = mongoose.model('RefreshToken', refreshTokenSchema);
 
 // Setup default configuration if not exists helper
 async function ensureDefaultConfig() {
   try {
-    const exists = await Config.findOne({ key: 'system_settings' });
-    if (!exists) {
-      const defaultConfig = new Config({ key: 'system_settings' });
-      await defaultConfig.save();
-      console.log('Default system settings configuration initialized.');
-    }
+    await Config.updateOne(
+      { key: 'system_settings' },
+      {
+        $setOnInsert: {
+          monthlyDiscountPrice: 299,
+          monthlyStrikePrice: 399,
+          annualDiscountPrice: 999,
+          annualStrikePrice: 1200,
+          indicatorMode: 'prebook',
+          countdownTargetDate: null,
+          maintenanceMode: false
+        }
+      },
+      { upsert: true }
+    );
+    console.log('Default system settings configuration initialized.');
   } catch (err) {
-    console.error('Error initializing default configuration:', err);
+    if (err.code === 11000) {
+      console.log('Default system settings already initialized (duplicate key handled).');
+    } else {
+      console.error('Error initializing default configuration:', err);
+    }
   }
 }
 
@@ -268,14 +356,69 @@ async function ensureDefaultIndicators() {
   }
 }
 
+// Setup default WebContent if not exists helper
+async function ensureDefaultWebContent() {
+  try {
+    await WebContent.updateOne(
+      { key: 'landing_page_copy' },
+      {
+        $setOnInsert: {
+          heroBadge: "Ciper AI Platform",
+          heroTitle1: "Automate",
+          heroTitle2: "Your Market Edge",
+          heroDesc: "Ciper uses advanced neural networks to map out the market in real-time. Detects support/resistance zones, high-probability convergence areas, and breakouts automatically.",
+          heroSlide2Badge: "Featured Indicator",
+          heroSlide2Title1: "Ciper TL",
+          heroSlide2Title2: "Trend Scanner",
+          heroSlide2Desc: "Automatically plot high-probability trend lines and identify chart pattern breakout zones in higher timeframes (H1, H4, D1).",
+          accuracyValue: 94,
+          stat1Num: "730K",
+          stat1Label: "Calculations/sec",
+          stat1Desc: "Real-time compute nodes analyzing micro-structure changes.",
+          stat2Num: "94%",
+          stat2Label: "Model Accuracy",
+          stat2Desc: "Historical test results on multi-timeframe breakouts.",
+          stat3Num: "12K+",
+          stat3Label: "Global Backtests",
+          stat3Desc: "Simulated market cycles across major tokens and assets.",
+          faqs: [
+            { q: "How does Ciper detect pattern zones?", a: "Ciper scans historical and real-time candlestick data across multiple timeframes, calculating mathematical standard deviations and liquidity imbalances to map pattern zones." },
+            { q: "Is Ciper suitable for beginners?", a: "Yes. Ciper takes complex institutional concepts (like support/resistance nodes and multi-indicator convergence) and translates them into simple, clean visual cues on your chart." },
+            { q: "Which assets and platforms does Ciper support?", a: "Ciper works across major asset classes including Cryptocurrencies, Forex, and Stocks. It is designed to integrate seamlessly with major charting platforms like TradingView." },
+            { q: "What does the early access waitlist include?", a: "Joining the waitlist secures your early access slot, exclusive discounted pricing upon launch, and access to private beta testing groups." }
+          ],
+          reviews: [
+            { quote: "Works like absolute magic. The neural pattern scanner marks structural zones in seconds. Completely optimized my entries and exit speeds.", user: "@Mishatrading", avatar: "MT", role: "Pro Crypto Trader" },
+            { quote: "The auto support & resistance overlays are incredibly precise. It maps liquidity pools exactly where institutional orders sit. Highly recommend.", user: "@NazarBuch", avatar: "NB", role: "Forex Specialist" },
+            { quote: "Ciper's convergence metrics have saved me hours of analysis. Seeing multiple mathematical indicators align in real-time is a complete cheat code.", user: "@CryptoApex", avatar: "CA", role: "Equity Analyst" }
+          ]
+        }
+      },
+      { upsert: true }
+    );
+    console.log('Default Web Content copy configuration initialized.');
+  } catch (err) {
+    if (err.code === 11000) {
+      console.log('Default Web Content copy configuration already initialized (duplicate key handled).');
+    } else {
+      console.error('Error initializing default web content:', err);
+    }
+  }
+}
+
+let dbInitialized = false;
+
 // Check connection to run config initialization
 mongoose.connection.on('connected', () => {
+  if (dbInitialized) return;
+  dbInitialized = true;
   setTimeout(() => {
     ensureDefaultConfig();
     ensureDefaultIndicators();
+    ensureDefaultWebContent();
   }, 500);
 });
 
-module.exports = { Prebooking, Config, Referral, Admin, Indicator };
+module.exports = { Prebooking, Config, Referral, Admin, Indicator, WebContent, RefreshToken };
 
 

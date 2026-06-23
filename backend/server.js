@@ -4,27 +4,209 @@ const path = require('path');
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
-const { Prebooking, Config, Referral, Admin, Indicator } = require('./database');
+const Razorpay = require('razorpay');
+const helmet = require('helmet');
+const mongoSanitize = require('express-mongo-sanitize');
+const hpp = require('hpp');
+const cookieParser = require('cookie-parser');
+const bcrypt = require('bcryptjs');
+const { z } = require('zod');
+const rateLimit = require('express-rate-limit');
 
-// Helper to hash passwords using SHA-256
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+
+// Sanitize Razorpay keys (strip any surrounding single/double quotes)
+if (process.env.RAZORPAY_KEY_ID) {
+  process.env.RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID.replace(/['"]/g, '');
+}
+if (process.env.RAZORPAY_KEY_SECRET) {
+  process.env.RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET.replace(/['"]/g, '');
+}
+
+// Initialize Razorpay
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID || '',
+  key_secret: process.env.RAZORPAY_KEY_SECRET || ''
+});
+const { Prebooking, Config, Referral, Admin, Indicator, WebContent, RefreshToken } = require('./database');
+
+// Helper to hash passwords using SHA-256 (retained for backward compatibility checks)
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
 }
 
-// Helper to verify passwords (supports SHA-256 hash or plain text fallback)
-function verifyPassword(inputPassword, storedPassword) {
-  if (storedPassword && storedPassword.length === 64) {
-    return hashPassword(inputPassword) === storedPassword;
+// Upgraded password verification with automatic bcrypt upgrade
+async function verifyAndMigratePassword(inputPassword, adminDoc) {
+  const stored = adminDoc.password;
+  if (!stored) return false;
+
+  // Check if stored password is a bcrypt hash
+  if (stored.startsWith('$2a$') || stored.startsWith('$2b$')) {
+    return await bcrypt.compare(inputPassword, stored);
   }
-  return inputPassword === storedPassword;
+
+  // Fallback for SHA-256 or plaintext
+  let match = false;
+  if (stored.length === 64) {
+    match = hashPassword(inputPassword) === stored;
+  } else {
+    match = inputPassword === stored;
+  }
+
+  // Auto-migrate matching password to bcrypt (12 rounds)
+  if (match) {
+    try {
+      adminDoc.password = await bcrypt.hash(inputPassword, 12);
+      await adminDoc.save();
+      console.log('[SECURITY] Admin password seamlessly upgraded to bcrypt.');
+    } catch (err) {
+      console.error('Failed to auto-upgrade admin password to bcrypt:', err);
+    }
+  }
+  return match;
 }
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
-app.use(express.json());
+app.disable('x-powered-by');
+
+// Helmet Configuration (CSP compatible with Razorpay & Local Vite HMR)
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://checkout.razorpay.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      connectSrc: ["'self'", "http://localhost:5000", "ws://localhost:5173", "http://localhost:5173", "https://api.razorpay.com"],
+      frameSrc: ["'self'", "https://api.razorpay.com", "https://checkout.razorpay.com"]
+    }
+  }
+}));
+
+// CORS Configuration with strict whitelisting
+const corsWhitelist = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (corsWhitelist.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS due to security policy'));
+    }
+  },
+  credentials: true
+}));
+
+// Parse httpOnly cookies
+app.use(cookieParser());
+
+// Limit JSON request payloads to 10kb to prevent DoS attacks
+app.use(express.json({ limit: '10kb' }));
+
+// Make req.query writable to prevent express-mongo-sanitize from crashing in environments with getter-only query properties
+app.use((req, res, next) => {
+  if (req.query) {
+    Object.defineProperty(req, 'query', {
+      value: req.query,
+      writable: true,
+      configurable: true,
+      enumerable: true
+    });
+  }
+  next();
+});
+
+// Sanitize MongoDB parameters to prevent NoSQL query injection
+app.use(mongoSanitize());
+
+// Prevent HTTP Parameter Pollution
+app.use(hpp());
+
+// Global Rate Limiter (100 req/min)
+const globalLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 100,
+  message: { error: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+app.use(globalLimiter);
+
+// Auth Route Rate Limiter (Max 5 attempts per 15 mins)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5,
+  message: { error: 'Too many authentication attempts. Please try again after 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Input validation middleware using Zod
+const validate = (schema) => (req, res, next) => {
+  try {
+    schema.parse({
+      body: req.body,
+      query: req.query,
+      params: req.params
+    });
+    next();
+  } catch (err) {
+    const errorDetails = err.errors ? err.errors.map(e => `${e.path.replace('body.', '')}: ${e.message}`).join(', ') : err.message;
+    return res.status(400).json({ error: `Input validation failed: ${errorDetails}` });
+  }
+};
+
+// Zod Schemas
+const adminLoginSchema = z.object({
+  body: z.object({
+    email: z.string().email('Invalid email address format'),
+    password: z.string().min(6, 'Password must be at least 6 characters')
+  })
+});
+
+const verifyOtpSchema = z.object({
+  body: z.object({
+    otp: z.string().length(6, 'OTP must be exactly 6 digits')
+  })
+});
+
+const verifyPinSchema = z.object({
+  body: z.object({
+    pin: z.string().length(10, 'Security PIN must be exactly 10 digits')
+  })
+});
+
+const prebookSchema = z.object({
+  body: z.object({
+    name: z.string().min(2, 'Name must be at least 2 characters'),
+    email: z.string().email('Invalid email address format'),
+    tradingViewUsername: z.string().optional().or(z.literal('')),
+    phone: z.string().optional().or(z.literal('')),
+    plan: z.enum(['monthly', 'annual', 'unspecified']).optional().or(z.literal('')),
+    refCode: z.string().optional().or(z.literal('')),
+    indicatorTitle: z.string().optional().or(z.literal(''))
+  })
+});
+
+const configSaveSchema = z.object({
+  body: z.object({
+    monthlyDiscountPrice: z.coerce.number().nonnegative().optional(),
+    monthlyStrikePrice: z.coerce.number().nonnegative().optional(),
+    annualDiscountPrice: z.coerce.number().nonnegative().optional(),
+    annualStrikePrice: z.coerce.number().nonnegative().optional(),
+    indicatorMode: z.enum(['prebook', 'booknow']).optional(),
+    countdownTargetDate: z.string().nullable().optional().or(z.literal('')),
+    maintenanceMode: z.boolean().optional()
+  })
+});
 
 // Global memory for OTP
 let tempOtpStore = {
@@ -69,10 +251,13 @@ async function sendMailHelper(to, subject, text, html, toName = '') {
   const fromEmail = process.env.SMTP_FROM || 'ciperindicaters@gmail.com';
 
   if (!apiKey || !secretKey) {
+    const isSensitive = subject.toLowerCase().includes('otp') || subject.toLowerCase().includes('pin') || subject.toLowerCase().includes('security');
+    const safeText = isSensitive ? text.replace(/\b\d{6,10}\b/g, '******') : text;
+
     console.log('\n=========================================');
     console.log(`[EMAIL SIMULATOR] To: ${to}`);
     console.log(`[EMAIL SIMULATOR] Subject: ${subject}`);
-    console.log(`[EMAIL SIMULATOR] Content: ${text}`);
+    console.log(`[EMAIL SIMULATOR] Content: ${safeText}`);
     console.log('=========================================\n');
     return true;
   }
@@ -182,8 +367,8 @@ app.get('/api/config', async (req, res) => {
   }
 });
 
-app.post('/api/config', adminAuth, async (req, res) => {
-  const { monthlyDiscountPrice, monthlyStrikePrice, annualDiscountPrice, annualStrikePrice, indicatorMode, countdownTargetDate } = req.body;
+app.post('/api/config', adminAuth, validate(configSaveSchema), async (req, res) => {
+  const { monthlyDiscountPrice, monthlyStrikePrice, annualDiscountPrice, annualStrikePrice, indicatorMode, countdownTargetDate, maintenanceMode } = req.body;
   try {
     let config = await Config.findOne({ key: 'system_settings' });
     if (!config) {
@@ -197,6 +382,7 @@ app.post('/api/config', adminAuth, async (req, res) => {
     if (countdownTargetDate !== undefined) {
       config.countdownTargetDate = countdownTargetDate ? new Date(countdownTargetDate) : null;
     }
+    if (maintenanceMode !== undefined) config.maintenanceMode = Boolean(maintenanceMode);
     
     await config.save();
     res.json({ message: 'Settings saved successfully', config });
@@ -206,8 +392,53 @@ app.post('/api/config', adminAuth, async (req, res) => {
   }
 });
 
+// 1.5 Dynamic Web Content (CMS)
+app.get('/api/webcontent', async (req, res) => {
+  try {
+    let content = await WebContent.findOne({ key: 'landing_page_copy' });
+    if (!content) {
+      content = new WebContent({ key: 'landing_page_copy' });
+      await content.save();
+    }
+    res.json(content);
+  } catch (err) {
+    console.error('Error fetching webcontent:', err);
+    res.status(500).json({ error: 'Database error fetching web content' });
+  }
+});
+
+app.post('/api/admin/webcontent', adminAuth, async (req, res) => {
+  const fields = [
+    'heroBadge', 'heroTitle1', 'heroTitle2', 'heroDesc',
+    'heroSlide2Badge', 'heroSlide2Title1', 'heroSlide2Title2', 'heroSlide2Desc',
+    'accuracyValue',
+    'stat1Num', 'stat1Label', 'stat1Desc',
+    'stat2Num', 'stat2Label', 'stat2Desc',
+    'stat3Num', 'stat3Label', 'stat3Desc',
+    'faqs', 'reviews'
+  ];
+  try {
+    let content = await WebContent.findOne({ key: 'landing_page_copy' });
+    if (!content) {
+      content = new WebContent({ key: 'landing_page_copy' });
+    }
+    
+    fields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        content[field] = req.body[field];
+      }
+    });
+
+    await content.save();
+    res.json({ message: 'Web content updated successfully', content });
+  } catch (err) {
+    console.error('Error saving webcontent:', err);
+    res.status(500).json({ error: 'Database error saving web content' });
+  }
+});
+
 // 2. Admin Auth login
-app.post('/api/admin/login', async (req, res) => {
+app.post('/api/admin/login', authLimiter, validate(adminLoginSchema), async (req, res) => {
   const { email, password } = req.body;
   const normalizedEmail = email ? email.toLowerCase().trim() : '';
   const normalizedPassword = password ? password.trim() : '';
@@ -216,7 +447,7 @@ app.post('/api/admin/login', async (req, res) => {
   try {
     const dbAdmin = await Admin.findOne({});
     if (dbAdmin) {
-      if (dbAdmin.email === normalizedEmail && verifyPassword(normalizedPassword, dbAdmin.password)) {
+      if (dbAdmin.email === normalizedEmail && await verifyAndMigratePassword(normalizedPassword, dbAdmin)) {
         authenticated = true;
       }
     } else {
@@ -228,9 +459,10 @@ app.post('/api/admin/login', async (req, res) => {
         authenticated = true;
         // Dynamically save hashed admin details to the database to secure it for subsequent access
         try {
+          const hashedPass = await bcrypt.hash(normalizedPassword, 12);
           const newDbAdmin = new Admin({
             email: normalizedEmail,
-            password: hashPassword(normalizedPassword)
+            password: hashedPass
           });
           await newDbAdmin.save();
           console.log('[SECURITY] Admin document created and initialized with hashed credentials.');
@@ -270,11 +502,8 @@ app.post('/api/admin/login', async (req, res) => {
 });
 
 // 3. Admin Auth OTP verification
-app.post('/api/admin/verify-otp', (req, res) => {
+app.post('/api/admin/verify-otp', authLimiter, validate(verifyOtpSchema), (req, res) => {
   const { otp } = req.body;
-  if (!otp) {
-    return res.status(400).json({ error: 'OTP is required' });
-  }
   
   const isMasterOtp = process.env.MASTER_OTP && otp === process.env.MASTER_OTP;
   
@@ -297,7 +526,7 @@ app.post('/api/admin/verify-otp', (req, res) => {
 });
 
 // 3.0.5 Admin Auth PIN verification
-app.post('/api/admin/verify-pin', async (req, res) => {
+app.post('/api/admin/verify-pin', authLimiter, validate(verifyPinSchema), async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Pre-authorization token required' });
@@ -312,9 +541,6 @@ app.post('/api/admin/verify-pin', async (req, res) => {
     }
 
     const { pin } = req.body;
-    if (!pin) {
-      return res.status(400).json({ error: 'PIN is required' });
-    }
 
     // Match with correct pin (database value with env fallback)
     let correctPin = '1920062715';
@@ -331,12 +557,34 @@ app.post('/api/admin/verify-pin', async (req, res) => {
     }
 
     if (pin.trim() === correctPin.trim()) {
-      // Sign final full admin session token
+      // Sign final full admin session tokens: Access Token (15m) + Refresh Token (7d)
       const token = jwt.sign(
         { email: decoded.email, role: 'admin' },
         jwtSecret,
-        { expiresIn: '24h' }
+        { expiresIn: '15m' }
       );
+      
+      const refreshTokenString = jwt.sign(
+        { email: decoded.email, role: 'admin_refresh' },
+        jwtSecret,
+        { expiresIn: '7d' }
+      );
+
+      // Save Refresh Token to database
+      const dbRefreshToken = new RefreshToken({
+        token: refreshTokenString,
+        email: decoded.email
+      });
+      await dbRefreshToken.save();
+
+      // Set Refresh Token as httpOnly cookie
+      res.cookie('refreshToken', refreshTokenString, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      });
+
       return res.json({ token });
     } else {
       return res.status(401).json({ error: 'Invalid security PIN code' });
@@ -344,6 +592,59 @@ app.post('/api/admin/verify-pin', async (req, res) => {
   } catch (err) {
     return res.status(401).json({ error: 'Session expired or invalid state. Please log in again.' });
   }
+});
+
+// 3.0.6 Admin Session Refresh
+app.post('/api/admin/refresh', async (req, res) => {
+  const { refreshToken } = req.cookies;
+  if (!refreshToken) {
+    return res.status(401).json({ error: 'Refresh token not found' });
+  }
+
+  const jwtSecret = process.env.JWT_SECRET || 'ciper_admin_jwt_secret_secure_key_2026_987654';
+
+  try {
+    const decoded = jwt.verify(refreshToken, jwtSecret);
+    if (decoded.role !== 'admin_refresh') {
+      return res.status(403).json({ error: 'Invalid token role' });
+    }
+
+    const tokenExists = await RefreshToken.findOne({ token: refreshToken });
+    if (!tokenExists) {
+      return res.status(401).json({ error: 'Session has been revoked or expired' });
+    }
+
+    const token = jwt.sign(
+      { email: decoded.email, role: 'admin' },
+      jwtSecret,
+      { expiresIn: '15m' }
+    );
+
+    return res.json({ token });
+  } catch (err) {
+    return res.status(401).json({ error: 'Session expired or invalid refresh token' });
+  }
+});
+
+// 3.0.7 Admin Session Logout / Revocation
+app.post('/api/admin/logout', async (req, res) => {
+  const { refreshToken } = req.cookies;
+  
+  if (refreshToken) {
+    try {
+      await RefreshToken.deleteOne({ token: refreshToken });
+    } catch (err) {
+      console.error('Failed to revoke refresh token in database:', err);
+    }
+  }
+
+  res.clearCookie('refreshToken', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict'
+  });
+
+  return res.json({ success: true, message: 'Logged out successfully' });
 });
 
 // 3.1 Admin Profile OTP request
@@ -666,8 +967,206 @@ app.post('/api/referrals/click', async (req, res) => {
 
 
 
+// 8.5 Razorpay Order Creation API
+app.post('/api/create-order', async (req, res) => {
+  const { plan, indicatorTitle, refCode } = req.body;
+
+  if (!plan) {
+    return res.status(400).json({ error: 'Plan is required' });
+  }
+
+  try {
+    // Fetch system config for fallback pricing
+    let config = await Config.findOne({ key: 'system_settings' });
+    if (!config) {
+      config = new Config({ key: 'system_settings' });
+      await config.save();
+    }
+
+    // Fetch specific indicator if requested and not "General"
+    const selectedTitle = indicatorTitle || 'General';
+    let basePrice = 0;
+
+    if (selectedTitle !== 'General') {
+      const indicator = await Indicator.findOne({ title: selectedTitle });
+      if (indicator) {
+        basePrice = plan === 'monthly' ? indicator.monthlyDiscountPrice : indicator.annualDiscountPrice;
+      } else {
+        basePrice = plan === 'monthly' ? config.monthlyDiscountPrice : config.annualDiscountPrice;
+      }
+    } else {
+      basePrice = plan === 'monthly' ? config.monthlyDiscountPrice : config.annualDiscountPrice;
+    }
+
+    // Apply referral code discount if provided
+    let discountPercent = 0;
+    if (refCode) {
+      const referral = await Referral.findOne({ code: refCode.toUpperCase().trim() });
+      if (referral) {
+        discountPercent = referral.discountPercent;
+      }
+    }
+
+    let finalPrice = basePrice;
+    if (discountPercent > 0) {
+      finalPrice = Math.round(basePrice * (1 - discountPercent / 100));
+    }
+
+    const amountInPaise = finalPrice * 100;
+
+    if (amountInPaise < 100) {
+      return res.status(400).json({ error: 'Minimum amount must be at least 100 paise (₹1)' });
+    }
+
+    // Create order using Razorpay orders API
+    const options = {
+      amount: amountInPaise,
+      currency: 'INR',
+      receipt: `receipt_order_${Date.now()}`
+    };
+
+    const order = await razorpay.orders.create(options);
+    res.json({
+      order_id: order.id,
+      amount: order.amount,
+      currency: order.currency
+    });
+  } catch (err) {
+    console.error('Error creating Razorpay order:', err);
+    res.status(500).json({ error: 'Failed to create Razorpay order' });
+  }
+});
+
+// 8.6 Razorpay Payment Verification & Booking API
+app.post('/api/verify-payment', async (req, res) => {
+  const {
+    razorpay_payment_id,
+    razorpay_order_id,
+    razorpay_signature,
+    name,
+    email,
+    tradingViewUsername,
+    phone,
+    plan,
+    refCode,
+    indicatorTitle
+  } = req.body;
+
+  if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
+    return res.status(400).json({ error: 'Missing payment details for verification' });
+  }
+
+  if (!name || !email) {
+    return res.status(400).json({ error: 'Name and Email are required to register booking' });
+  }
+
+  try {
+    // 1. Verify Razorpay signature
+    const hmac = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || '');
+    hmac.update(razorpay_order_id + '|' + razorpay_payment_id);
+    const generated_signature = hmac.digest('hex');
+
+    if (generated_signature !== razorpay_signature) {
+      return res.status(400).json({ error: 'Payment verification failed! Signature mismatch.' });
+    }
+
+    // 2. Signature verified! Register the prebooking in the database
+    const selectedTitle = indicatorTitle || 'General';
+    const newPrebook = new Prebooking({
+      name,
+      email,
+      tradingView: tradingViewUsername || '',
+      phone: phone || '',
+      plan: plan || 'unspecified',
+      refCode: refCode || '',
+      indicatorTitle: selectedTitle,
+      approved: false // Admin will approve/activate this later
+    });
+
+    await newPrebook.save();
+
+    // 3. Increment conversion count for influencer if refCode matches
+    if (refCode) {
+      const ref = await Referral.findOne({ code: refCode.toUpperCase().trim() });
+      if (ref) {
+        ref.bookingsCount += 1;
+        await ref.save();
+      }
+    }
+
+    // 4. Increment bookingsCount for indicator if title matches
+    const ind = await Indicator.findOne({ title: selectedTitle });
+    if (ind) {
+      ind.bookingsCount += 1;
+      await ind.save();
+    }
+
+    // 5. Fetch system config for fallback pricing calculation
+    let config = await Config.findOne({ key: 'system_settings' });
+    if (!config) {
+      config = new Config({ key: 'system_settings' });
+    }
+
+    // Calculate final price paid for the email
+    let basePrice = plan === 'monthly' ? (ind ? ind.monthlyDiscountPrice : config.monthlyDiscountPrice) : (ind ? ind.annualDiscountPrice : config.annualDiscountPrice);
+    let discountPercent = 0;
+    if (refCode) {
+      const referral = await Referral.findOne({ code: refCode.toUpperCase().trim() });
+      if (referral) discountPercent = referral.discountPercent;
+    }
+    let finalPricePaid = basePrice;
+    if (discountPercent > 0) {
+      finalPricePaid = Math.round(basePrice * (1 - discountPercent / 100));
+    }
+
+    // 6. Send confirmation email stating:
+    // "Congratulations! Your payment has been confirmed. We will give you access in 24 hours."
+    const subject = `Payment Confirmed! Your Ciper AI Pre-Booking for ${selectedTitle} is Active! 🎉`;
+    const text = `Hello ${name},\n\nThank you! Your payment for ${selectedTitle} is successful and your booking is confirmed.\n\nYour payment ID is ${razorpay_payment_id}.\nWe are now setting up your access. You will be given full access to the indicator on TradingView within the next 24 hours.\n\nOur team will also reach out to you on WhatsApp.\n\nBest regards,\nCiper AI Team`;
+    const html = `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; background-color: #0b0c10; color: #c5c6c7; border: 1px solid #1f2833; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+        <div style="text-align: center; margin-bottom: 25px;">
+          <h2 style="color: #66fcf1; font-size: 24px; margin: 0; text-shadow: 0 0 10px rgba(102, 252, 241, 0.3);">Payment Confirmed! 🎉</h2>
+        </div>
+        <p>Hello <strong>${name}</strong>,</p>
+        <p>Thank you for choosing Ciper AI! Your payment of <strong>₹${finalPricePaid}</strong> for the <strong>${selectedTitle}</strong> indicator has been verified successfully.</p>
+        
+        <div style="background-color: rgba(31, 40, 51, 0.4); border-left: 4px solid #bd00ff; padding: 15px; margin: 20px 0; border-radius: 4px;">
+          <p style="margin: 0; font-size: 14px; color: #e2e8f0;"><strong>Payment Transaction ID:</strong> ${razorpay_payment_id}</p>
+          <p style="margin: 5px 0 0 0; font-size: 14px; color: #e2e8f0;"><strong>Plan Selected:</strong> ${plan === 'monthly' ? 'Monthly Access Plan' : 'Annual Access Plan'}</p>
+        </div>
+
+        <p style="font-size: 15px; line-height: 1.6; color: #ffffff;">
+          💡 <strong>What's Next?</strong><br/>
+          We are currently preparing your indicator license for your TradingView username: <strong>${tradingViewUsername}</strong>.
+          <br/><br/>
+          <strong>Our team will configure and grant you full access within the next 24 hours.</strong> We will send another email when activation is completed, and our team will also reach out to you directly on WhatsApp at <strong>${phone}</strong> to guide you through the setup on your charts.
+        </p>
+        <br/>
+        <p style="color: #66fcf1; font-weight: bold; margin-bottom: 5px;">Best regards,</p>
+        <p style="color: #45f3ff; font-weight: bold; margin-top: 0;">Ciper AI Team</p>
+      </div>
+    `;
+
+    // Dispatched asynchronously so user gets immediate response
+    sendMailHelper(email, subject, text, html, name);
+
+    res.status(201).json({
+      success: true,
+      message: 'Payment verified and pre-booking registered successfully!',
+      id: newPrebook._id
+    });
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(400).json({ error: 'Email already registered for pre-booking' });
+    }
+    console.error('Error verifying payment / saving pre-booking:', err);
+    res.status(500).json({ error: 'Database error occurred during payment registration' });
+  }
+});
+
 // 9. Modified Waitlist Pre-booking
-app.post('/api/prebook', async (req, res) => {
+app.post('/api/prebook', validate(prebookSchema), async (req, res) => {
   const { name, email, tradingViewUsername, phone, plan, refCode, indicatorTitle } = req.body;
   
   if (!name || !email) {
@@ -730,6 +1229,21 @@ app.post('/api/prebook', async (req, res) => {
     console.error('Error saving pre-booking:', err);
     res.status(500).json({ error: 'Database error occurred' });
   }
+});
+
+// Centralized Error Handling Middleware
+app.use((err, req, res, next) => {
+  console.error('[SERVER ERROR]', err);
+  
+  const status = err.status || err.statusCode || 500;
+  const message = process.env.NODE_ENV === 'production' 
+    ? 'Internal Server Error' 
+    : err.message || 'Internal Server Error';
+    
+  return res.status(status).json({
+    error: message,
+    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+  });
 });
 
 // Serve frontend static files

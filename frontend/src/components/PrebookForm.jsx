@@ -65,33 +65,129 @@ export default function PrebookForm({
     setStatus({ type: '', message: '' });
 
     try {
+      if (!window.Razorpay) {
+        throw new Error('Razorpay SDK failed to load. Please refresh the page or check your internet connection.');
+      }
+
       const API_URL = import.meta.env.VITE_API_URL || (
-        window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-          ? 'http://localhost:5000'
+        window.location.hostname === 'localhost' || 
+        window.location.hostname === '127.0.0.1' || 
+        window.location.hostname.startsWith('192.168.') || 
+        window.location.hostname.startsWith('10.') || 
+        window.location.hostname.startsWith('172.')
+          ? `http://${window.location.hostname}:5000`
           : window.location.origin
       );
-      const response = await fetch(`${API_URL}/api/prebook`, {
+
+      const refCodeVal = sessionStorage.getItem('ciper_referral_code') || '';
+      const indicatorTitleVal = selectedIndicator ? selectedIndicator.title : 'General';
+
+      // 1. Create order on the backend
+      const orderRes = await fetch(`${API_URL}/api/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...formData,
-          indicatorTitle: selectedIndicator ? selectedIndicator.title : 'General',
-          refCode: sessionStorage.getItem('ciper_referral_code') || ''
+          plan: formData.plan,
+          indicatorTitle: indicatorTitleVal,
+          refCode: refCodeVal
         })
       });
 
-      const data = await response.json();
+      const orderData = await orderRes.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Something went wrong');
+      if (!orderRes.ok) {
+        throw new Error(orderData.error || 'Failed to initiate order. Please try again.');
       }
 
-      setStatus({ type: 'success', message: 'Pre-booking successful! We will notify you when Ciper is ready.' });
-      setFormData({ name: '', email: '', tradingViewUsername: '', phone: '', plan: defaultPlan });
-      triggerConfetti();
+      // 2. Open Razorpay Checkout Modal
+      const options = {
+        key: (import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_T4k9SB7UQRjnIJ').replace(/['"]/g, ''),
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'Ciper AI',
+        description: `Pre-book ${indicatorTitleVal}`,
+        order_id: orderData.order_id,
+        handler: async function (response) {
+          try {
+            setIsLoading(true);
+            setStatus({ type: '', message: 'Verifying payment status...' });
+
+            // 3. Verify payment signature on backend
+            const verifyRes = await fetch(`${API_URL}/api/verify-payment`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_signature: response.razorpay_signature,
+                name: formData.name,
+                email: formData.email,
+                tradingViewUsername: formData.tradingViewUsername,
+                phone: formData.phone,
+                plan: formData.plan,
+                refCode: refCodeVal,
+                indicatorTitle: indicatorTitleVal
+              })
+            });
+
+            const verifyData = await verifyRes.json();
+
+            if (!verifyRes.ok) {
+              throw new Error(verifyData.error || 'Payment signature verification failed.');
+            }
+
+            setStatus({ type: 'success', message: 'Payment confirmed! Access will be granted in 24 hours.' });
+            setFormData({ name: '', email: '', tradingViewUsername: '', phone: '', plan: defaultPlan });
+            triggerConfetti();
+          } catch (err) {
+            setStatus({ type: 'error', message: err.message });
+          } finally {
+            setIsLoading(false);
+          }
+        },
+        prefill: {
+          name: formData.name,
+          email: formData.email,
+          contact: formData.phone
+        },
+        theme: {
+          color: '#bd00ff'
+        },
+        config: {
+          display: {
+            blocks: {
+              upi: {
+                name: 'Pay via UPI / QR Code',
+                instruments: [
+                  {
+                    method: 'upi'
+                  }
+                ]
+              }
+            },
+            sequence: ['block.upi', 'block.other'],
+            preferences: {
+              show_default_blocks: true
+            }
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            setStatus({ type: 'error', message: 'Payment checkout cancelled by user.' });
+            setIsLoading(false);
+          }
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', function (resp) {
+        setStatus({ type: 'error', message: `Payment failed: ${resp.error.description}` });
+        setIsLoading(false);
+      });
+      rzp.open();
+
     } catch (err) {
       setStatus({ type: 'error', message: err.message });
-    } finally {
       setIsLoading(false);
     }
   };
@@ -117,11 +213,11 @@ export default function PrebookForm({
         />
       ))}
 
-      <h2>{selectedIndicator ? `Pre-Book ${selectedIndicator.title}` : (systemConfig.indicatorMode === 'prebook' ? 'Secure Early Access' : 'Book Ciper Indicator Now')}</h2>
+      <h2>{selectedIndicator ? `Pre-Book ${selectedIndicator.title}` : (systemConfig.indicatorMode === 'prebook' ? 'Pay & Pre-Book Access' : 'Book Ciper Indicator Now')}</h2>
       <p>
         {selectedIndicator 
           ? `Pre-book ${selectedIndicator.title} to lock in early-access discount pricing before the public launch.`
-          : (systemConfig.indicatorMode === 'prebook' ? 'Join the waitlist and be the first to experience the future of AI trading.' : 'Complete booking form to activate your live trading indicator license.')}
+          : (systemConfig.indicatorMode === 'prebook' ? 'Pre-book now to secure early-access discount pricing and get instant setup details.' : 'Complete booking form to activate your live trading indicator license.')}
       </p>
       <form onSubmit={handleSubmit}>
         <div className="plan-selection-group">
@@ -194,7 +290,7 @@ export default function PrebookForm({
           />
         </div>
         <button type="submit" className="btn-primary submit-btn" disabled={isLoading}>
-          {isLoading ? 'Booking...' : (systemConfig.indicatorMode === 'prebook' ? 'Join Waitlist' : 'Book Indicator Access')}
+          {isLoading ? 'Processing...' : (systemConfig.indicatorMode === 'prebook' ? 'Pay & Pre-Book' : 'Pay & Book Access')}
         </button>
       </form>
       
