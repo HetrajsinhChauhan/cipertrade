@@ -86,23 +86,38 @@ app.use(helmet({
   }
 }));
 
-// CORS Configuration with strict whitelisting
+// CORS Configuration with strict whitelisting and dynamic same-origin support
 const corsWhitelist = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   process.env.FRONTEND_URL
 ].filter(Boolean);
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (corsWhitelist.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS due to security policy'));
+app.use(cors((req, callback) => {
+  const origin = req.header('Origin');
+  let corsOptions = { credentials: true };
+
+  if (!origin) {
+    corsOptions.origin = true;
+  } else {
+    // Dynamically allow same-origin requests (origin matching host header)
+    const reqHost = req.get('host'); // e.g. "cipertrade.com" or "localhost:5000"
+    let isSameOrigin = false;
+    try {
+      const originUrl = new URL(origin);
+      isSameOrigin = originUrl.host === reqHost;
+    } catch (e) {
+      isSameOrigin = false;
     }
-  },
-  credentials: true
+
+    if (isSameOrigin || corsWhitelist.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+      corsOptions.origin = true;
+    } else {
+      corsOptions.origin = false; // Disable CORS for untrusted domains instead of throwing a server-side 500 error
+    }
+  }
+
+  callback(null, corsOptions);
 }));
 
 // Parse httpOnly cookies
@@ -1251,7 +1266,7 @@ const frontendDistPath = path.join(__dirname, '../frontend/dist');
 app.use(express.static(frontendDistPath));
 
 // Catch-all route to serve the React app
-app.get('*all', (req, res) => {
+app.get('*', (req, res) => {
   const indexPath = path.join(frontendDistPath, 'index.html');
   if (require('fs').existsSync(indexPath)) {
     res.sendFile(indexPath);
