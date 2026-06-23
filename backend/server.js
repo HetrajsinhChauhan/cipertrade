@@ -1266,7 +1266,7 @@ const frontendDistPath = path.join(__dirname, '../frontend/dist');
 app.use(express.static(frontendDistPath));
 
 // Catch-all route to serve the React app
-app.get('*', (req, res) => {
+app.get('*all', (req, res) => {
   const indexPath = path.join(frontendDistPath, 'index.html');
   if (require('fs').existsSync(indexPath)) {
     res.sendFile(indexPath);
