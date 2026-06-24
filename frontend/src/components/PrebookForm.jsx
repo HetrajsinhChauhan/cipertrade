@@ -11,12 +11,14 @@ export default function PrebookForm({
     indicatorMode: 'prebook'
   },
   referralDiscount = { code: '', discountPercent: 0, name: '' },
-  selectedIndicator = null
+  selectedIndicator = null,
+  onClose = null
 }) {
   const [formData, setFormData] = useState({ name: '', email: '', tradingViewUsername: '', phone: '', plan: defaultPlan });
   const [status, setStatus] = useState({ type: '', message: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [particles, setParticles] = useState([]);
+  const [showPlanSelector, setShowPlanSelector] = useState(false);
   const formRef = useRef(null);
 
   const globalDiscount = systemConfig?.globalDiscountPercent || 0;
@@ -85,10 +87,6 @@ export default function PrebookForm({
     setStatus({ type: '', message: '' });
 
     try {
-      if (!window.Razorpay) {
-        throw new Error('Razorpay SDK failed to load. Please refresh the page or check your internet connection.');
-      }
-
       const API_URL = import.meta.env.VITE_API_URL || (
         window.location.hostname === 'localhost' || 
         window.location.hostname === '127.0.0.1' || 
@@ -101,12 +99,47 @@ export default function PrebookForm({
 
       const refCodeVal = sessionStorage.getItem('ciper_referral_code') || '';
       const selectedPlanObj = plans.find(p => p.id === formData.plan) || plans[0];
+      const indicatorTitleVal = selectedIndicator ? selectedIndicator.title : '';
+
+      // 1. If indicatorMode is prebook, turn Razorpay OFF and submit waitlist lead directly
+      if (systemConfig?.indicatorMode === 'prebook') {
+        const prebookRes = await fetch(`${API_URL}/api/prebook`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            tradingViewUsername: formData.tradingViewUsername,
+            phone: formData.phone,
+            plan: formData.plan,
+            refCode: refCodeVal,
+            indicatorTitle: indicatorTitleVal
+          })
+        });
+
+        const prebookData = await prebookRes.json();
+        if (!prebookRes.ok) {
+          throw new Error(prebookData.error || 'Failed to submit prebooking waitlist lead. Please try again.');
+        }
+
+        setStatus({ type: 'success', message: 'Pre-booking successful! Your spot on the early access waitlist is secured.' });
+        setFormData({ name: '', email: '', tradingViewUsername: '', phone: '', plan: defaultPlan });
+        triggerConfetti();
+        setIsLoading(false);
+        return;
+      }
+
+      // 2. Otherwise (Indicator is Live/Paid), run Razorpay checkout
+      if (!window.Razorpay) {
+        throw new Error('Razorpay SDK failed to load. Please refresh the page or check your internet connection.');
+      }
+
       let amountVal = selectedPlanObj.price;
       if (referralDiscount && referralDiscount.discountPercent > 0) {
         amountVal = Math.round(amountVal * (1 - referralDiscount.discountPercent / 100));
       }
 
-      // 1. Create order on the backend
+      // Create order on the backend
       const orderRes = await fetch(`${API_URL}/api/payment/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -237,63 +270,212 @@ export default function PrebookForm({
         />
       ))}
 
-      <h2>Checkout & Subscribe</h2>
+      <div className="checkout-header" style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '0.4rem',
+        width: '100%'
+      }}>
+        <h2 style={{ margin: 0 }}>{systemConfig?.indicatorMode === 'prebook' ? 'Secure Early Access' : 'Checkout & Subscribe'}</h2>
+        {onClose && (
+          <button 
+            type="button" 
+            className="checkout-close-btn" 
+            onClick={onClose}
+            aria-label="Close modal"
+          >
+            &times;
+          </button>
+        )}
+      </div>
       <p>
-        Complete the form below and verify payment to activate your live indicator subscription immediately.
+        {systemConfig?.indicatorMode === 'prebook' 
+          ? 'Complete the form below to secure your early access spot on the waitlist today. No payment required.' 
+          : 'Complete the form below and verify payment to activate your live indicator subscription immediately.'}
       </p>
       <form onSubmit={handleSubmit}>
-        <div className="plan-selection-group">
-          <label className="group-label">Selected Plan</label>
-          <div className="plan-selector" style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, 1fr)',
-            gap: '8px',
-            width: '100%',
-            marginBottom: '1rem'
-          }}>
-            {plans.map((p) => {
-              const isSelected = formData.plan === p.id;
-              let displayPrice = p.price;
-              if (referralDiscount && referralDiscount.discountPercent > 0) {
-                displayPrice = Math.round(p.price * (1 - referralDiscount.discountPercent / 100));
-              }
-              const displayLabel = `₹${displayPrice.toLocaleString()}${p.id === '1month' ? '/mo' : p.id === '3months' ? '/3 mos' : p.id === '6months' ? '/6 mos' : '/yr'}`;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setFormData({ ...formData, plan: p.id })}
-                  className={`prebook-plan-btn ${isSelected ? 'selected' : ''}`}
-                  style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0.8rem 0.5rem', minHeight: '62px' }}
-                >
-                  {p.isBest && (
-                    <span style={{
-                      position: 'absolute',
-                      top: '-6px',
-                      background: '#00D4AA',
-                      color: '#000',
-                      fontSize: '0.55rem',
-                      fontWeight: '800',
-                      padding: '1px 6px',
-                      borderRadius: '8px'
-                    }}>
-                      BEST
-                    </span>
-                  )}
-                  <span className="plan-name" style={{ fontWeight: '750', fontSize: '0.82rem' }}>{p.name}</span>
-                  <span className="plan-price" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px', marginTop: '2px' }}>
-                    {p.strike && p.strike > displayPrice && (
-                      <span style={{ fontSize: '0.62rem', textDecoration: 'line-through', opacity: 0.5 }}>
-                        ₹{p.strike.toLocaleString()}
+        {showPlanSelector ? (
+          <div className="plan-selection-group select-grid-wrapper" style={{ gridColumn: 'span 2' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+              <label className="group-label" style={{ margin: 0 }}>Select A Subscription Plan</label>
+              <button
+                type="button"
+                onClick={() => setShowPlanSelector(false)}
+                className="back-receipt-link"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-light)',
+                  fontSize: '0.72rem',
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                  padding: 0
+                }}
+              >
+                Back to Receipt
+              </button>
+            </div>
+            <div className="plan-selector" style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gap: '8px',
+              width: '100%',
+              marginBottom: '1rem'
+            }}>
+              {plans.map((p) => {
+                const isSelected = formData.plan === p.id;
+                let displayPrice = p.price;
+                if (referralDiscount && referralDiscount.discountPercent > 0) {
+                  displayPrice = Math.round(p.price * (1 - referralDiscount.discountPercent / 100));
+                }
+                const displayLabel = `₹${displayPrice.toLocaleString()}${p.id === '1month' ? '/mo' : p.id === '3months' ? '/3 mos' : p.id === '6months' ? '/6 mos' : '/yr'}`;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setFormData({ ...formData, plan: p.id });
+                      setShowPlanSelector(false);
+                    }}
+                    className={`prebook-plan-btn ${isSelected ? 'selected' : ''}`}
+                    style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0.8rem 0.5rem', minHeight: '62px' }}
+                  >
+                    {p.isBest && (
+                      <span style={{
+                        position: 'absolute',
+                        top: '-6px',
+                        background: '#00D4AA',
+                        color: '#000',
+                        fontSize: '0.55rem',
+                        fontWeight: '800',
+                        padding: '1px 6px',
+                        borderRadius: '8px'
+                      }}>
+                        BEST
                       </span>
                     )}
-                    <span style={{ fontSize: '0.78rem', fontWeight: '800', color: isSelected ? '#000' : '#00D4AA' }}>{displayLabel}</span>
-                  </span>
-                </button>
-              );
-            })}
+                    <span className="plan-name" style={{ fontWeight: '750', fontSize: '0.82rem' }}>{p.name}</span>
+                    <span className="plan-price" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px', marginTop: '2px' }}>
+                      {p.strike && p.strike > displayPrice && (
+                        <span style={{ fontSize: '0.62rem', textDecoration: 'line-through', opacity: 0.5 }}>
+                          ₹{p.strike.toLocaleString()}
+                        </span>
+                      )}
+                      <span style={{ fontSize: '0.78rem', fontWeight: '800', color: isSelected ? '#000' : '#00D4AA' }}>{displayLabel}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="invoice-receipt" style={{
+            background: 'rgba(255, 255, 255, 0.02)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: '16px',
+            padding: '1.2rem',
+            marginBottom: '1rem',
+            width: '100%',
+            boxSizing: 'border-box',
+            boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.05), 0 8px 32px rgba(0, 0, 0, 0.3)',
+            backdropFilter: 'blur(10px)',
+            gridColumn: 'span 2'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.6rem' }}>
+              <div>
+                <span className="active-plan-title" style={{ fontSize: '0.7rem', color: 'var(--text-light)', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.5px' }}>Active Plan</span>
+                <div style={{ fontSize: '1rem', fontWeight: '800', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>{plans.find(p => p.id === formData.plan)?.name || 'Plan'} Pass</span>
+                  {plans.find(p => p.id === formData.plan)?.isBest && (
+                    <span className="plan-badge" style={{
+                      background: 'linear-gradient(90deg, #bd00ff, #00D4AA)',
+                      color: '#000',
+                      fontSize: '0.55rem',
+                      fontWeight: '900',
+                      padding: '1px 6px',
+                      borderRadius: '8px',
+                      textTransform: 'uppercase'
+                    }}>
+                      Best Value
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPlanSelector(true)}
+                className="change-plan-btn"
+                style={{
+                  background: 'rgba(189, 0, 255, 0.1)',
+                  border: '1px solid rgba(189, 0, 255, 0.25)',
+                  color: '#d866ff',
+                  padding: '5px 12px',
+                  borderRadius: '20px',
+                  fontSize: '0.75rem',
+                  fontWeight: '750',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                Change Plan
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.82rem' }}>
+              <div className="price-row" style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-light)' }}>
+                <span>Standard Mkt Value:</span>
+                <span style={{ textDecoration: 'line-through', opacity: 0.6 }}>₹{(formData.plan === '1month' ? s1 : formData.plan === '3months' ? s3 : formData.plan === '6months' ? s6 : s1y).toLocaleString()}</span>
+              </div>
+              <div className="price-row" style={{ display: 'flex', justifyContent: 'space-between', color: '#fff' }}>
+                <span>Ciper Base Price:</span>
+                <span>₹{(formData.plan === '1month' ? p1 : formData.plan === '3months' ? p3 : formData.plan === '6months' ? p6 : p1y).toLocaleString()}</span>
+              </div>
+
+              {(formData.plan === '1month' ? p1 : formData.plan === '3months' ? p3 : formData.plan === '6months' ? p6 : p1y) - (plans.find(p => p.id === formData.plan)?.price || 0) > 0 && (
+                <div className="price-row" style={{ display: 'flex', justifyContent: 'space-between', color: '#00D4AA' }}>
+                  <span>Global Discount ({globalDiscount}%):</span>
+                  <span>-₹{((formData.plan === '1month' ? p1 : formData.plan === '3months' ? p3 : formData.plan === '6months' ? p6 : p1y) - (plans.find(p => p.id === formData.plan)?.price || 0)).toLocaleString()}</span>
+                </div>
+              )}
+
+              {referralDiscount && referralDiscount.discountPercent > 0 && (
+                <div className="price-row" style={{ display: 'flex', justifyContent: 'space-between', color: '#3b82f6' }}>
+                  <span>Referral Promo ({referralDiscount.discountPercent}%):</span>
+                  <span>-₹{Math.round((plans.find(p => p.id === formData.plan)?.price || 0) * (referralDiscount.discountPercent / 100)).toLocaleString()}</span>
+                </div>
+              )}
+
+              <div style={{
+                marginTop: '0.6rem',
+                paddingTop: '0.6rem',
+                borderTop: '1px dashed rgba(255,255,255,0.1)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <div>
+                  <span className="final-payable-label" style={{ fontSize: '0.85rem', fontWeight: '800', color: '#fff' }}>Final Payable:</span>
+                  <div style={{ fontSize: '0.6rem', color: 'var(--text-light)' }}>Includes all platform access taxes</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span className="final-payable-price" style={{
+                    fontSize: '1.6rem',
+                    fontWeight: '900',
+                    color: '#00D4AA',
+                    textShadow: '0 0 10px rgba(0, 212, 170, 0.2)',
+                    fontFamily: 'monospace'
+                  }}>
+                    ₹{(
+                      (plans.find(p => p.id === formData.plan)?.price || 0) - 
+                      Math.round((plans.find(p => p.id === formData.plan)?.price || 0) * ((referralDiscount?.discountPercent || 0) / 100))
+                    ).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="form-group">
           <label htmlFor="name">Full Name</label>
@@ -339,8 +521,13 @@ export default function PrebookForm({
             placeholder="e.g. +91 98765 43210"
           />
         </div>
-        <button type="submit" className="btn-primary submit-btn" disabled={isLoading} style={{ width: '100%', padding: '0.9rem', marginTop: '1rem', background: '#00D4AA', color: '#000', fontWeight: '800' }}>
-          {isLoading ? 'Processing...' : 'Subscribe & Verify'}
+        <button type="submit" className="btn-primary submit-btn" disabled={isLoading}>
+          {isLoading ? (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="spinner-loader"></span>
+              <span>Processing...</span>
+            </span>
+          ) : (systemConfig?.indicatorMode === 'prebook' ? 'Confirm Pre-Booking' : 'Subscribe & Verify')}
         </button>
       </form>
       

@@ -38,7 +38,7 @@ const prebookingSchema = new mongoose.Schema({
   },
   plan: {
     type: String,
-    enum: ['monthly', 'annual', 'unspecified'],
+    enum: ['monthly', 'annual', 'unspecified', '1month', '3months', '6months', '1year'],
     default: 'unspecified'
   },
   refCode: {

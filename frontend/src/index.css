@@ -3489,8 +3489,15 @@ footer {
   }
 
   .modal-content form {
+    grid-template-columns: 1fr !important;
     gap: 0px;
-    row-gap: 4px;
+    row-gap: 8px !important;
+  }
+
+  .modal-content .plan-selection-group,
+  .modal-content .submit-btn,
+  .modal-content .message {
+    grid-column: span 1 !important;
   }
 
   .modal-content .form-container h2 {
@@ -5078,6 +5085,372 @@ html.lenis, html.lenis body {
   }
 }
 
+/* Checkout Close Button and Invoice Receipt */
+.checkout-close-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: var(--text-muted);
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  padding: 0;
+  line-height: 1;
+}
+
+.checkout-close-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: var(--error-color);
+  color: #fff;
+  transform: rotate(90deg);
+}
+
+.invoice-receipt {
+  transition: all 0.3s ease;
+}
+
+.change-plan-btn {
+  transition: all 0.2s ease;
+}
+
+.change-plan-btn:hover {
+  background: rgba(189, 0, 255, 0.25) !important;
+  border-color: rgba(189, 0, 255, 0.45) !important;
+  transform: translateY(-1px);
+}
+
+
+/* ==========================================================================
+   Redesigned Premium Checkout & Subscribe Modal Styles
+   ========================================================================== */
+
+/* Modern spinner animation */
+.spinner-loader {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  border-top-color: #000000;
+  border-radius: 50%;
+  animation: spinner-spin 0.6s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+@keyframes spinner-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Modal Content Card Refinements */
+.modal-content {
+  background: rgba(10, 8, 20, 0.92) !important;
+  border: 1px solid rgba(189, 0, 255, 0.28) !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9), 0 0 30px rgba(189, 0, 255, 0.12) !important;
+  backdrop-filter: blur(30px) !important;
+  border-radius: 20px !important;
+  overflow: hidden;
+  max-width: 600px !important; /* Premium balanced card size on desktop */
+}
+
+/* Ensure inner form-container inherits cleanly without duplicate borders/shadows/backgrounds */
+.modal-content .form-container {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  overflow: visible !important;
+  padding: 2rem 2.5rem !important; /* Maintain the main container padding */
+}
+
+/* Modal Header Close button integration inside card */
+.checkout-close-btn {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 50% !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+  font-size: 1.25rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  padding: 0 !important;
+  line-height: 1 !important;
+}
+
+.checkout-close-btn:hover {
+  background: rgba(239, 68, 68, 0.18) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  color: #ffffff !important;
+  transform: rotate(90deg) scale(1.05) !important;
+}
+
+/* Premium Billing Receipt Summary */
+.invoice-receipt {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: 1px solid rgba(189, 0, 255, 0.2) !important;
+  border-radius: 14px !important;
+  padding: 1.4rem !important;
+  margin-bottom: 1.5rem !important;
+  box-sizing: border-box !important;
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.05), 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+  backdrop-filter: blur(15px) !important;
+}
+
+.invoice-receipt .active-plan-title {
+  font-size: 0.75rem !important;
+  font-weight: 800 !important;
+  color: #a78bfa !important;
+  letter-spacing: 0.8px !important;
+}
+
+.invoice-receipt .plan-badge {
+  background: linear-gradient(90deg, #bd00ff, #00D4AA) !important;
+  color: #000000 !important;
+  font-size: 0.58rem !important;
+  font-weight: 900 !important;
+  padding: 2px 7px !important;
+  border-radius: 6px !important;
+}
+
+.invoice-receipt .change-plan-btn {
+  background: rgba(189, 0, 255, 0.12) !important;
+  border: 1px solid rgba(189, 0, 255, 0.3) !important;
+  color: #e28eff !important;
+  padding: 6px 14px !important;
+  border-radius: 20px !important;
+  font-size: 0.75rem !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.invoice-receipt .change-plan-btn:hover {
+  background: rgba(189, 0, 255, 0.22) !important;
+  border-color: rgba(189, 0, 255, 0.5) !important;
+  transform: translateY(-1px) !important;
+}
+
+.invoice-receipt .price-row {
+  font-size: 0.85rem !important;
+}
+
+.invoice-receipt .final-payable-label {
+  font-size: 0.88rem !important;
+  font-weight: 800 !important;
+  color: #ffffff !important;
+}
+
+.invoice-receipt .final-payable-price {
+  font-size: 1.9rem !important; /* Outstanding Payable Price */
+  font-weight: 900 !important;
+  color: #00F5D4 !important;
+  text-shadow: 0 0 12px rgba(0, 245, 212, 0.4) !important;
+  font-family: 'Outfit', sans-serif !important;
+}
+
+/* Form inputs styling */
+.modal-content form {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  column-gap: 20px !important;
+  row-gap: 16px !important;
+  text-align: left !important;
+  width: 100% !important;
+}
+
+.modal-content .form-group {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  margin-bottom: 0px !important;
+  width: 100% !important;
+}
+
+.modal-content .form-group label {
+  font-size: 0.75rem !important;
+  font-weight: 800 !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.8px !important;
+  margin-bottom: 0 !important;
+}
+
+.modal-content .form-group input {
+  width: 100% !important;
+  height: 48px !important; /* Unified size */
+  box-sizing: border-box !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: 1px solid rgba(189, 0, 255, 0.25) !important;
+  border-radius: 8px !important;
+  padding: 12px 16px !important; /* Premium padding */
+  font-size: 0.88rem !important;
+  color: #ffffff !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  outline: none !important;
+}
+
+.modal-content .form-group input::placeholder {
+  color: rgba(255, 255, 255, 0.35) !important;
+  opacity: 1 !important;
+}
+
+/* Purple Glow Focus State */
+.modal-content .form-group input:focus {
+  border-color: #bd00ff !important;
+  box-shadow: 0 0 10px rgba(189, 0, 255, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.03) !important;
+  background: rgba(189, 0, 255, 0.04) !important;
+}
+
+/* Premium Gradient Submit Button */
+.modal-content .submit-btn {
+  grid-column: span 2 !important;
+  width: 100% !important;
+  height: 54px !important; /* Prominent Height */
+  background: linear-gradient(135deg, #00F5D4, #00D4FF) !important; /* Modern SaaS gradient */
+  color: #000000 !important;
+  font-size: 1rem !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+  border: none !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  box-shadow: 0 4px 15px rgba(0, 245, 212, 0.25) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-top: 1.2rem !important;
+}
+
+.modal-content .submit-btn:hover:not(:disabled) {
+  transform: scale(1.02) !important; /* Scale hover transition */
+  box-shadow: 0 0 20px rgba(0, 245, 212, 0.5), 0 0 40px rgba(0, 212, 255, 0.25) !important; /* Glowing shadow */
+}
+
+.modal-content .submit-btn:active:not(:disabled) {
+  transform: scale(0.98) !important;
+}
+
+.modal-content .submit-btn:disabled {
+  background: linear-gradient(135deg, rgba(0, 245, 212, 0.35), rgba(0, 212, 255, 0.35)) !important;
+  color: rgba(0, 0, 0, 0.45) !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* Mobile responsive fixes */
+@media (max-width: 768px) {
+  .modal-content {
+    width: calc(100% - 32px) !important; /* Minimum 16px side margin to never touch screen edges */
+    max-width: 400px !important; /* Slightly more compact card width on mobile */
+    border-radius: 16px !important;
+    margin: 0 auto !important;
+  }
+
+  .modal-content .form-container {
+    padding: 1.2rem 1.0rem !important; /* Decreased card padding */
+  }
+
+  .modal-content h2 {
+    font-size: 1.15rem !important; /* Decreased header text size */
+  }
+
+  .modal-content p {
+    font-size: 0.72rem !important; /* Decreased paragraph text size */
+    line-height: 1.35 !important;
+    margin-bottom: 0.8rem !important;
+  }
+
+  .modal-content form {
+    grid-template-columns: 1fr !important; /* Force single column grid layout */
+    row-gap: 10px !important; /* Slightly tighter vertical input gap */
+    width: 100% !important;
+  }
+
+  .modal-content .plan-selection-group,
+  .modal-content .invoice-receipt,
+  .modal-content .submit-btn,
+  .modal-content .message,
+  .modal-content .form-group {
+    grid-column: span 1 !important; /* Make sure each spans exactly 1 column */
+    width: 100% !important;
+  }
+
+  .modal-content .form-group label {
+    font-size: 0.65rem !important; /* Decreased label font size */
+    letter-spacing: 0.5px !important;
+  }
+
+  .modal-content .form-group input {
+    height: 42px !important; /* Decreased input height */
+    padding: 10px 12px !important; /* Decreased input padding */
+    font-size: 0.82rem !important; /* Decreased input font size */
+    border-radius: 6px !important;
+  }
+
+  .modal-content .submit-btn {
+    height: 48px !important; /* Balanced CTA height on mobile */
+    font-size: 0.82rem !important; /* Slightly smaller to fit long texts like 'Confirm Pre-Booking' */
+    letter-spacing: 0.5px !important; /* Tighter letter spacing on mobile */
+    white-space: nowrap !important; /* Prevent text wrapping inside button */
+    margin-top: 0.6rem !important;
+    width: 100% !important; /* Stretches 100% to fill container */
+    grid-column: span 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .invoice-receipt {
+    padding: 1rem 0.85rem !important; /* Tighter padding for receipt */
+    border-radius: 10px !important;
+    margin-bottom: 0.6rem !important;
+  }
+
+  .invoice-receipt .active-plan-title {
+    font-size: 0.68rem !important;
+  }
+
+  .invoice-receipt .plan-badge {
+    font-size: 0.5rem !important;
+    padding: 1px 4px !important;
+  }
+
+  .invoice-receipt .change-plan-btn {
+    font-size: 0.68rem !important;
+    padding: 4px 10px !important;
+  }
+
+  .invoice-receipt .price-row {
+    font-size: 0.78rem !important;
+  }
+
+  .invoice-receipt .final-payable-label {
+    font-size: 0.75rem !important;
+  }
+
+  .invoice-receipt .final-payable-price {
+    font-size: 1.45rem !important; /* Tighter final payable text */
+  }
+
+  .checkout-close-btn {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 1rem !important;
+  }
+}
+
 /* Extra small mobile screens (max-width: 480px) */
 @media (max-width: 480px) {
   .hero-title {
@@ -5116,7 +5489,53 @@ html.lenis, html.lenis body {
   .modal-content .form-group input {
     padding: 0.35rem 0.5rem !important;
     font-size: 0.72rem !important;
-    height: 32px !important;
+    height: 38px !important; /* Increased slightly for accessibility */
+  }
+
+  .modal-content .submit-btn {
+    height: 44px !important;
+    font-size: 0.76rem !important; /* Fit text on iPhone SE width */
+    letter-spacing: 0.3px !important;
+    white-space: nowrap !important;
+    margin-top: 0.6rem !important;
+  }
+
+  .checkout-close-btn {
+    width: 22px !important;
+    height: 22px !important;
+    font-size: 0.85rem !important;
+  }
+
+  .invoice-receipt {
+    padding: 0.8rem 0.7rem !important;
+    border-radius: 10px !important;
+    margin-bottom: 0.6rem !important;
+  }
+
+  .invoice-receipt .active-plan-title {
+    font-size: 0.62rem !important;
+  }
+
+  .invoice-receipt .plan-badge {
+    font-size: 0.45rem !important;
+    padding: 1px 4px !important;
+  }
+
+  .invoice-receipt .change-plan-btn {
+    font-size: 0.62rem !important;
+    padding: 3px 8px !important;
+  }
+
+  .invoice-receipt .price-row {
+    font-size: 0.7rem !important;
+  }
+
+  .invoice-receipt .final-payable-label {
+    font-size: 0.72rem !important;
+  }
+
+  .invoice-receipt .final-payable-price {
+    font-size: 1.25rem !important;
   }
 }
 

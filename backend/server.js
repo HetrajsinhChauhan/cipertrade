@@ -205,7 +205,7 @@ const prebookSchema = z.object({
     email: z.string().email('Invalid email address format'),
     tradingViewUsername: z.string().optional().or(z.literal('')),
     phone: z.string().optional().or(z.literal('')),
-    plan: z.enum(['monthly', 'annual', 'unspecified']).optional().or(z.literal('')),
+    plan: z.enum(['monthly', 'annual', 'unspecified', '1month', '3months', '6months', '1year']).optional().or(z.literal('')),
     refCode: z.string().optional().or(z.literal('')),
     indicatorTitle: z.string().optional().or(z.literal(''))
   })
@@ -816,6 +816,46 @@ app.post('/api/admin/leads/:id/confirm', adminAuth, async (req, res) => {
   } catch (err) {
     console.error('Error approving lead:', err);
     res.status(500).json({ error: 'Database error approving lead' });
+  }
+});
+
+// 5.0.1 Notify all prebooking waitlist members about indicator launch
+app.post('/api/admin/leads/notify-launch', adminAuth, async (req, res) => {
+  try {
+    const leads = await Prebooking.find({});
+    
+    if (leads.length === 0) {
+      return res.status(400).json({ error: 'No pre-booking requests found to notify.' });
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const lead of leads) {
+      try {
+        const subject = `Ciper Eye Indicator is Now Live! 🚀`;
+        const text = `Hello ${lead.name},\n\nWe are thrilled to announce that the Ciper Eye Signal Engine is now officially Live! 🎉\n\nYou can now visit our website to checkout and activate your indicator access pass immediately.\n\nBest regards,\nCiper AI Team`;
+        const html = `
+          <h3>Ciper Eye is Officially Live! 🚀</h3>
+          <p>Hello <strong>${lead.name}</strong>,</p>
+          <p>We are thrilled to announce that the <strong>Ciper Eye Signal Engine</strong> is now officially Live! 🎉</p>
+          <p>Since you pre-booked, your early spot is secured. You can now visit our website to buy your monthly or annual access pass and start trading with institutional market edge indicators immediately.</p>
+          <p><a href="https://cipereye.com" style="background-color: #00D4AA; color: #000; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Go to Ciper Website &rarr;</a></p>
+          <br/>
+          <p>Best regards,<br/>Ciper AI Team</p>
+        `;
+        await sendMailHelper(lead.email, subject, text, html);
+        successCount++;
+      } catch (err) {
+        console.error(`Failed to send launch email to ${lead.email}:`, err);
+        failCount++;
+      }
+    }
+
+    res.json({ message: `Notification broadcast complete. Sent: ${successCount}, Failed: ${failCount}` });
+  } catch (err) {
+    console.error('Error broadcasting launch emails:', err);
+    res.status(500).json({ error: 'Database error occurred during email broadcast' });
   }
 });
 

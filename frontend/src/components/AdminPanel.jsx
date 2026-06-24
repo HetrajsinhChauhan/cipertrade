@@ -571,6 +571,33 @@ export default function AdminPanel() {
     }
   };
 
+  const handleNotifyLaunchAll = async () => {
+    if (!window.confirm("Are you sure you want to broadcast the Launch Email notification to ALL pre-booked leads? This will send live alerts to everyone on the waitlist.")) {
+      return;
+    }
+    setActionLoading('notify-launch');
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch(`${API_URL}/api/admin/leads/notify-launch`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to broadcast launch notifications');
+      
+      setSuccess(`Launch broadcast complete! ${data.message || ''}`);
+      fetchDashboardData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleSimulateExpiry = async (leadId) => {
     setActionLoading(leadId);
     setError('');
@@ -1000,7 +1027,7 @@ export default function AdminPanel() {
                 className={`sidebar-link ${activeTab === 'leads' ? 'active' : ''}`}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                <span style={{ flex: 1 }}>Waitlist Leads</span>
+                <span style={{ flex: 1 }}>Requests</span>
                 <span style={{ fontSize: '0.72rem', background: activeTab === 'leads' ? 'rgba(189, 0, 255, 0.25)' : 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: '10px', color: '#fff', fontWeight: 600 }}>
                   {prebookings.length}
                 </span>
@@ -1114,7 +1141,7 @@ export default function AdminPanel() {
                 </button>
                 <div className="admin-header-title">
                   {activeTab === 'analytics' && 'Analytics Dashboard'}
-                  {activeTab === 'leads' && 'Waitlist Leads'}
+                  {activeTab === 'leads' && 'Requests'}
                   {activeTab === 'subscriptions' && 'User Subscriptions'}
                   {activeTab === 'referrals' && 'Referral Program'}
                   {activeTab === 'indicators' && 'Manage Indicators'}
@@ -1214,7 +1241,7 @@ export default function AdminPanel() {
               <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '1.2rem', marginBottom: '2rem' }}>
                 <p style={{ color: '#94a3b8', fontSize: '0.88rem', margin: 0 }}>
                   {activeTab === 'analytics' && 'Visualize platform metrics, plan preferences, and conversion rates.'}
-                  {activeTab === 'leads' && 'Approve early-access waitlist members and dispatch confirmation keys.'}
+                  {activeTab === 'leads' && 'Manage pre-booking requests and notify all waitlist members when indicators go live.'}
                   {activeTab === 'subscriptions' && 'Manage active, expired, and expiring user subscriptions, extend access, or revoke license.'}
                   {activeTab === 'referrals' && 'Generate and monitor tracking links for influencers.'}
                   {activeTab === 'indicators' && 'Introduce new indicator offerings, configure discount pricing and timers, and view bookings.'}
@@ -1434,17 +1461,40 @@ export default function AdminPanel() {
               {/* Tab: Leads */}
               {activeTab === 'leads' && (
                 <div className="admin-card" style={{ overflowX: 'auto' }}>
-                  <h3 style={{ marginBottom: '1.2rem', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                    <span>Early Access Waitlist Members</span>
-                    <span style={{ fontSize: '0.72rem', background: 'rgba(189, 0, 255, 0.08)', color: '#bd00ff', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(189, 0, 255, 0.2)', fontWeight: 700 }}>
-                      {prebookings.length} Total
-                    </span>
-                    <span style={{ fontSize: '0.72rem', background: 'rgba(239, 68, 68, 0.08)', color: '#ef4444', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.2)', fontWeight: 700 }}>
-                      {prebookings.filter(p => !p.approved).length} Pending
-                    </span>
-                    <span style={{ fontSize: '0.72rem', background: 'rgba(0, 87, 255, 0.08)', color: '#0057ff', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(0, 87, 255, 0.2)', fontWeight: 700 }}>
-                      {getFilteredAndSortedLeads().length} Filtered
-                    </span>
+                  <h3 style={{ marginBottom: '1.2rem', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      <span>Requests</span>
+                      <span style={{ fontSize: '0.72rem', background: 'rgba(189, 0, 255, 0.08)', color: '#bd00ff', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(189, 0, 255, 0.2)', fontWeight: 700 }}>
+                        {prebookings.length} Total
+                      </span>
+                      <span style={{ fontSize: '0.72rem', background: 'rgba(239, 68, 68, 0.08)', color: '#ef4444', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.2)', fontWeight: 700 }}>
+                        {prebookings.filter(p => !p.approved).length} Pending
+                      </span>
+                      <span style={{ fontSize: '0.72rem', background: 'rgba(0, 87, 255, 0.08)', color: '#0057ff', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(0, 87, 255, 0.2)', fontWeight: 700 }}>
+                        {getFilteredAndSortedLeads().length} Filtered
+                      </span>
+                    </div>
+                    <button
+                      onClick={handleNotifyLaunchAll}
+                      className="btn-primary animate-pulse-glow"
+                      style={{
+                        padding: '0.5rem 1rem',
+                        fontSize: '0.78rem',
+                        borderRadius: '8px',
+                        background: 'linear-gradient(135deg, #bd00ff, #0057ff)',
+                        border: 'none',
+                        color: '#fff',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(189, 0, 255, 0.2)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                      disabled={loading || actionLoading === 'notify-launch'}
+                    >
+                      {actionLoading === 'notify-launch' ? 'Sending Launch Alerts...' : '📢 Broadcast Launch Email'}
+                    </button>
                   </h3>
 
                   {/* Leads search, filters and sort controls */}
