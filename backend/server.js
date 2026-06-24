@@ -76,12 +76,12 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://checkout.razorpay.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://checkout.razorpay.com", "https://cdn.razorpay.com", "https://*.razorpay.com"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "blob:"],
-      connectSrc: ["'self'", "http://localhost:5000", "ws://localhost:5173", "http://localhost:5173", "https://api.razorpay.com"],
-      frameSrc: ["'self'", "https://api.razorpay.com", "https://checkout.razorpay.com"]
+      imgSrc: ["'self'", "data:", "blob:", "https://*.razorpay.com"],
+      connectSrc: ["'self'", "http://localhost:5000", "ws://localhost:5173", "http://localhost:5173", "https://api.razorpay.com", "https://*.razorpay.com"],
+      frameSrc: ["'self'", "https://api.razorpay.com", "https://checkout.razorpay.com", "https://*.razorpay.com"]
     }
   }
 }));
@@ -615,7 +615,7 @@ app.post('/api/admin/verify-pin', authLimiter, validate(verifyPinSchema), async 
 app.post('/api/admin/refresh', async (req, res) => {
   const { refreshToken } = req.cookies;
   if (!refreshToken) {
-    return res.status(401).json({ error: 'Refresh token not found' });
+    return res.json({ token: null, error: 'Refresh token not found' });
   }
 
   const jwtSecret = process.env.JWT_SECRET || 'ciper_admin_jwt_secret_secure_key_2026_987654';
@@ -623,12 +623,12 @@ app.post('/api/admin/refresh', async (req, res) => {
   try {
     const decoded = jwt.verify(refreshToken, jwtSecret);
     if (decoded.role !== 'admin_refresh') {
-      return res.status(403).json({ error: 'Invalid token role' });
+      return res.json({ token: null, error: 'Invalid token role' });
     }
 
     const tokenExists = await RefreshToken.findOne({ token: refreshToken });
     if (!tokenExists) {
-      return res.status(401).json({ error: 'Session has been revoked or expired' });
+      return res.json({ token: null, error: 'Session has been revoked or expired' });
     }
 
     const token = jwt.sign(
@@ -639,7 +639,7 @@ app.post('/api/admin/refresh', async (req, res) => {
 
     return res.json({ token });
   } catch (err) {
-    return res.status(401).json({ error: 'Session expired or invalid refresh token' });
+    return res.json({ token: null, error: 'Session expired or invalid refresh token' });
   }
 });
 
