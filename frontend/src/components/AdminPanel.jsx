@@ -61,28 +61,43 @@ export default function AdminPanel() {
     title: '',
     desc: '',
     status: 'Coming Soon',
-    monthlyStrikePrice: 399,
-    monthlyDiscountPrice: 299,
-    annualStrikePrice: 1200,
-    annualDiscountPrice: 999,
+    monthlyStrikePrice: 199,
+    monthlyDiscountPrice: 149,
+    annualStrikePrice: 599,
+    annualDiscountPrice: 499,
+    price1Month: 1749,
+    strike1Month: 3499,
+    price3Months: 3999,
+    strike3Months: 7999,
+    price6Months: 6999,
+    strike6Months: 13999,
+    price1Year: 11499,
+    strike1Year: 22999,
     countdownTargetDate: '',
     icon: 'trend'
   });
   const [editingIndicator, setEditingIndicator] = useState(null);
   const [config, setConfig] = useState({
-    monthlyDiscountPrice: 299,
-    monthlyStrikePrice: 399,
-    annualDiscountPrice: 999,
-    annualStrikePrice: 1200,
+    monthlyDiscountPrice: 149,
+    monthlyStrikePrice: 199,
+    annualDiscountPrice: 499,
+    annualStrikePrice: 599,
     indicatorMode: 'prebook',
     countdownTargetDate: '',
-    maintenanceMode: false
+    maintenanceMode: false,
+    globalDiscountPercent: 0
   });
 
   // Editor states
   const [newPricing, setNewPricing] = useState({ ...config });
   const [newReferral, setNewReferral] = useState({ code: '', name: '', discountPercent: 10 });
   const [activeTab, setActiveTab] = useState('analytics'); // analytics, leads, referrals, indicators, config, profile, cms
+
+  // Subscriptions management states
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [subPlanFilter, setSubPlanFilter] = useState('all');
+  const [subStatusFilter, setSubStatusFilter] = useState('all');
+  const [subSearchQuery, setSubSearchQuery] = useState('');
 
   // Search, Filters & Sorting
   const [searchQuery, setSearchQuery] = useState('');
@@ -97,9 +112,9 @@ export default function AdminPanel() {
     heroTitle2: "Your Market Edge",
     heroDesc: "Ciper uses advanced neural networks to map out the market in real-time. Detects support/resistance zones, high-probability convergence areas, and breakouts automatically.",
     heroSlide2Badge: "Featured Indicator",
-    heroSlide2Title1: "Ciper TL",
-    heroSlide2Title2: "Trend Scanner",
-    heroSlide2Desc: "Automatically plot high-probability trend lines and identify chart pattern breakout zones in higher timeframes (H1, H4, D1).",
+    heroSlide2Title1: "Ciper Eye",
+    heroSlide2Title2: "Signal Engine",
+    heroSlide2Desc: "Generates high-probability buy/sell signals. Integrate it with your existing strategy to get precise entry, take profit (TP), and stop loss (SL) levels.",
     accuracyValue: 94,
     stat1Num: "730K",
     stat1Label: "Calculations/sec",
@@ -280,6 +295,13 @@ export default function AdminPanel() {
       if (webcontentRes.ok) {
         const webcontentData = await webcontentRes.json();
         setCmsContent(webcontentData);
+      }
+
+      // Fetch Subscriptions
+      const subRes = await fetch(`${API_URL}/api/admin/subscriptions`, { headers });
+      if (subRes.ok) {
+        const subData = await subRes.json();
+        setSubscriptions(subData || []);
       }
     } catch (err) {
       console.error('Error loading dashboard data:', err);
@@ -569,6 +591,111 @@ export default function AdminPanel() {
     }
   };
 
+  const getSubscriptionStatus = (sub) => {
+    if (sub.status === 'revoked') return 'expired';
+    const now = new Date();
+    const end = new Date(sub.endDate);
+    if (end <= now) return 'expired';
+    
+    const diffTime = end - now;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays <= 7) return 'expiring_soon';
+    
+    return 'active';
+  };
+
+  const handleExtendSubscription = async (id) => {
+    if (!window.confirm("Are you sure you want to extend this subscription by 30 days?")) return;
+    setActionLoading(id);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch(`${API_URL}/api/admin/subscriptions/${id}/extend`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to extend subscription');
+      setSuccess('Subscription extended by 30 days successfully!');
+      fetchDashboardData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRevokeSubscription = async (id) => {
+    if (!window.confirm("Are you sure you want to revoke this subscription access?")) return;
+    setActionLoading(id);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch(`${API_URL}/api/admin/subscriptions/${id}/revoke`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to revoke subscription');
+      setSuccess('Subscription access revoked successfully!');
+      fetchDashboardData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const getFilteredSubscriptions = () => {
+    let list = [...subscriptions];
+    
+    if (subSearchQuery.trim()) {
+      const q = subSearchQuery.toLowerCase().trim();
+      list = list.filter(sub => {
+        const email = sub.userId?.email || '';
+        return email.toLowerCase().includes(q);
+      });
+    }
+    
+    if (subPlanFilter !== 'all') {
+      list = list.filter(sub => sub.planId === subPlanFilter);
+    }
+    
+    if (subStatusFilter !== 'all') {
+      list = list.filter(sub => {
+        const status = getSubscriptionStatus(sub);
+        return status === subStatusFilter;
+      });
+    }
+    
+    return list;
+  };
+
+  const exportToCSV = () => {
+    const filtered = getFilteredSubscriptions();
+    const headers = ['User Email', 'Plan ID', 'Plan Name', 'Amount', 'Start Date', 'End Date', 'Status'];
+    const rows = filtered.map(sub => [
+      sub.userId?.email || '',
+      sub.planId,
+      sub.planName,
+      sub.amount,
+      new Date(sub.startDate).toLocaleDateString(),
+      new Date(sub.endDate).toLocaleDateString(),
+      getSubscriptionStatus(sub).toUpperCase()
+    ]);
+    
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + [headers.join(','), ...rows.map(e => e.map(val => `"${val}"`).join(','))].join('\n');
+      
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `subscriptions_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const copyReferralLink = (code) => {
     const link = `${window.location.origin}/?ref=${code}`;
     navigator.clipboard.writeText(link);
@@ -596,10 +723,18 @@ export default function AdminPanel() {
         title: '',
         desc: '',
         status: 'Coming Soon',
-        monthlyStrikePrice: 399,
-        monthlyDiscountPrice: 299,
-        annualStrikePrice: 1200,
-        annualDiscountPrice: 999,
+        monthlyStrikePrice: 199,
+        monthlyDiscountPrice: 149,
+        annualStrikePrice: 599,
+        annualDiscountPrice: 499,
+        price1Month: 1749,
+        strike1Month: 3499,
+        price3Months: 3999,
+        strike3Months: 7999,
+        price6Months: 6999,
+        strike6Months: 13999,
+        price1Year: 11499,
+        strike1Year: 22999,
         countdownTargetDate: '',
         icon: 'trend'
       });
@@ -872,6 +1007,17 @@ export default function AdminPanel() {
               </button>
 
               <button
+                onClick={() => { setActiveTab('subscriptions'); setIsSidebarOpen(false); }}
+                className={`sidebar-link ${activeTab === 'subscriptions' ? 'active' : ''}`}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                <span style={{ flex: 1 }}>Subscriptions</span>
+                <span style={{ fontSize: '0.72rem', background: activeTab === 'subscriptions' ? 'rgba(189, 0, 255, 0.25)' : 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: '10px', color: '#fff', fontWeight: 600 }}>
+                  {subscriptions.length}
+                </span>
+              </button>
+
+              <button
                 onClick={() => { setActiveTab('referrals'); setIsSidebarOpen(false); }}
                 className={`sidebar-link ${activeTab === 'referrals' ? 'active' : ''}`}
               >
@@ -969,6 +1115,7 @@ export default function AdminPanel() {
                 <div className="admin-header-title">
                   {activeTab === 'analytics' && 'Analytics Dashboard'}
                   {activeTab === 'leads' && 'Waitlist Leads'}
+                  {activeTab === 'subscriptions' && 'User Subscriptions'}
                   {activeTab === 'referrals' && 'Referral Program'}
                   {activeTab === 'indicators' && 'Manage Indicators'}
                   {activeTab === 'config' && 'Web Configuration'}
@@ -1068,6 +1215,7 @@ export default function AdminPanel() {
                 <p style={{ color: '#94a3b8', fontSize: '0.88rem', margin: 0 }}>
                   {activeTab === 'analytics' && 'Visualize platform metrics, plan preferences, and conversion rates.'}
                   {activeTab === 'leads' && 'Approve early-access waitlist members and dispatch confirmation keys.'}
+                  {activeTab === 'subscriptions' && 'Manage active, expired, and expiring user subscriptions, extend access, or revoke license.'}
                   {activeTab === 'referrals' && 'Generate and monitor tracking links for influencers.'}
                   {activeTab === 'indicators' && 'Introduce new indicator offerings, configure discount pricing and timers, and view bookings.'}
                   {activeTab === 'config' && 'Configure product pricing plans and booking status.'}
@@ -1465,6 +1613,200 @@ export default function AdminPanel() {
                 </div>
               )}
 
+              {/* Tab: Subscriptions */}
+              {activeTab === 'subscriptions' && (
+                <div className="admin-card" style={{ overflowX: 'auto' }}>
+                  <h3 style={{ marginBottom: '1.2rem', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <span>Active Member Subscriptions</span>
+                    <span style={{ fontSize: '0.72rem', background: 'rgba(189, 0, 255, 0.08)', color: '#bd00ff', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(189, 0, 255, 0.2)', fontWeight: 700 }}>
+                      {subscriptions.length} Total
+                    </span>
+                    <span style={{ fontSize: '0.72rem', background: 'rgba(16, 185, 129, 0.08)', color: '#10b981', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.2)', fontWeight: 700 }}>
+                      {subscriptions.filter(s => getSubscriptionStatus(s) === 'active').length} Active
+                    </span>
+                    <span style={{ fontSize: '0.72rem', background: 'rgba(0, 87, 255, 0.08)', color: '#0057ff', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(0, 87, 255, 0.2)', fontWeight: 700 }}>
+                      {getFilteredSubscriptions().length} Filtered
+                    </span>
+                  </h3>
+
+                  {/* Subscriptions search, filters, and export */}
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '12px',
+                    marginBottom: '1.5rem',
+                    padding: '1.2rem',
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    border: '1px solid rgba(255, 255, 255, 0.04)',
+                    borderRadius: '16px',
+                    alignItems: 'flex-end'
+                  }}>
+                    <div style={{ flex: '2 1 280px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 750, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Search Email</label>
+                      <input
+                        type="text"
+                        placeholder="Search by subscriber email..."
+                        value={subSearchQuery}
+                        onChange={(e) => setSubSearchQuery(e.target.value)}
+                        style={{
+                          padding: '0.55rem 0.8rem',
+                          fontSize: '0.82rem',
+                          borderRadius: '8px',
+                          background: 'rgba(255, 255, 255, 0.03)',
+                          border: '2px solid rgba(255, 255, 255, 0.06)',
+                          color: '#fff',
+                          width: '100%'
+                        }}
+                      />
+                    </div>
+                    <div style={{ flex: '1 1 140px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 750, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Plan Filter</label>
+                      <select
+                        value={subPlanFilter}
+                        onChange={(e) => setSubPlanFilter(e.target.value)}
+                        style={{
+                          padding: '0.55rem 0.8rem',
+                          fontSize: '0.82rem',
+                          borderRadius: '8px',
+                          background: 'rgba(255, 255, 255, 0.03)',
+                          border: '2px solid rgba(255, 255, 255, 0.06)',
+                          color: '#fff',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <option value="all">All Plans</option>
+                        <option value="1month">1 Month</option>
+                        <option value="3months">3 Months</option>
+                        <option value="6months">6 Months</option>
+                        <option value="1year">1 Year</option>
+                      </select>
+                    </div>
+                    <div style={{ flex: '1 1 140px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 750, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Status Filter</label>
+                      <select
+                        value={subStatusFilter}
+                        onChange={(e) => setSubStatusFilter(e.target.value)}
+                        style={{
+                          padding: '0.55rem 0.8rem',
+                          fontSize: '0.82rem',
+                          borderRadius: '8px',
+                          background: 'rgba(255, 255, 255, 0.03)',
+                          border: '2px solid rgba(255, 255, 255, 0.06)',
+                          color: '#fff',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <option value="all">All Statuses</option>
+                        <option value="active">Active</option>
+                        <option value="expiring_soon">Expiring Soon</option>
+                        <option value="expired">Expired</option>
+                      </select>
+                    </div>
+                    <button
+                      onClick={exportToCSV}
+                      className="btn-primary"
+                      style={{
+                        padding: '0.55rem 1.2rem',
+                        fontSize: '0.82rem',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        height: 'fit-content',
+                        border: 'none',
+                        fontWeight: 600
+                      }}
+                    >
+                      Export CSV
+                    </button>
+                  </div>
+
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)', color: '#64748b' }}>
+                        <th style={{ padding: '0.8rem' }}>Subscriber</th>
+                        <th style={{ padding: '0.8rem' }}>TradingView</th>
+                        <th style={{ padding: '0.8rem' }}>Phone</th>
+                        <th style={{ padding: '0.8rem' }}>Plan</th>
+                        <th style={{ padding: '0.8rem' }}>Amount</th>
+                        <th style={{ padding: '0.8rem' }}>Start Date</th>
+                        <th style={{ padding: '0.8rem' }}>End Date</th>
+                        <th style={{ padding: '0.8rem' }}>Status</th>
+                        <th style={{ padding: '0.8rem', textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getFilteredSubscriptions().length === 0 ? (
+                        <tr>
+                          <td colSpan="9" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>No subscriptions found matching filters.</td>
+                        </tr>
+                      ) : (
+                        getFilteredSubscriptions().map((sub) => {
+                          const status = getSubscriptionStatus(sub);
+                          let badgeBg = 'rgba(16, 185, 129, 0.12)';
+                          let badgeColor = '#10b981';
+                          let badgeText = 'Active';
+
+                          if (status === 'expiring_soon') {
+                            badgeBg = 'rgba(249, 115, 22, 0.12)';
+                            badgeColor = '#f97316';
+                            badgeText = 'Expiring Soon';
+                          } else if (status === 'expired') {
+                            badgeBg = 'rgba(239, 68, 68, 0.12)';
+                            badgeColor = '#ef4444';
+                            badgeText = 'Expired';
+                          }
+
+                          return (
+                            <tr key={sub._id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.03)', transition: 'background 0.3s' }}>
+                              <td style={{ padding: '0.8rem' }}>
+                                <div style={{ fontWeight: 600, color: '#fff' }}>{sub.userId?.name || 'N/A'}</div>
+                                <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>{sub.userId?.email || 'N/A'}</div>
+                              </td>
+                              <td style={{ padding: '0.8rem', fontFamily: 'monospace' }}>{sub.userId?.tradingViewUsername || '-'}</td>
+                              <td style={{ padding: '0.8rem', color: '#94a3b8' }}>{sub.userId?.phone || '-'}</td>
+                              <td style={{ padding: '0.8rem', fontWeight: 600 }}>{sub.planName}</td>
+                              <td style={{ padding: '0.8rem', color: '#bd00ff', fontWeight: 700 }}>₹{sub.amount}</td>
+                              <td style={{ padding: '0.8rem', color: '#94a3b8' }}>{new Date(sub.startDate).toLocaleDateString()}</td>
+                              <td style={{ padding: '0.8rem', color: '#94a3b8' }}>{new Date(sub.endDate).toLocaleDateString()}</td>
+                              <td style={{ padding: '0.8rem' }}>
+                                <span style={{
+                                  padding: '2px 8px', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 700,
+                                  background: badgeBg,
+                                  color: badgeColor
+                                }}>
+                                  {badgeText.toUpperCase()}
+                                </span>
+                              </td>
+                              <td style={{ padding: '0.8rem', textAlign: 'right' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+                                  <button
+                                    onClick={() => handleExtendSubscription(sub._id)}
+                                    className="btn-secondary"
+                                    style={{ padding: '0.35rem 0.7rem', fontSize: '0.72rem', borderRadius: '6px', cursor: 'pointer' }}
+                                    disabled={actionLoading === sub._id}
+                                  >
+                                    Extend 30d
+                                  </button>
+                                  {status !== 'expired' && (
+                                    <button
+                                      onClick={() => handleRevokeSubscription(sub._id)}
+                                      className="btn-secondary"
+                                      style={{ padding: '0.35rem 0.7rem', fontSize: '0.72rem', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444', cursor: 'pointer' }}
+                                      disabled={actionLoading === sub._id}
+                                    >
+                                      Revoke
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
               {/* Tab: Referrals */}
               {activeTab === 'referrals' && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem', alignItems: 'start' }} className="admin-referrals-grid">
@@ -1574,15 +1916,17 @@ export default function AdminPanel() {
                           <th style={{ padding: '0.8rem' }}>Title</th>
                           <th style={{ padding: '0.8rem' }}>Status</th>
                           <th style={{ padding: '0.8rem', textAlign: 'center' }}>Bookings</th>
-                          <th style={{ padding: '0.8rem' }}>Monthly (Strike/Disc)</th>
-                          <th style={{ padding: '0.8rem' }}>Annual (Strike/Disc)</th>
+                          <th style={{ padding: '0.8rem' }}>1 Month</th>
+                          <th style={{ padding: '0.8rem' }}>3 Months</th>
+                          <th style={{ padding: '0.8rem' }}>6 Months</th>
+                          <th style={{ padding: '0.8rem' }}>1 Year</th>
                           <th style={{ padding: '0.8rem', textAlign: 'right' }}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {indicators.length === 0 ? (
                           <tr>
-                            <td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>No indicators registered yet.</td>
+                            <td colSpan="8" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>No indicators registered yet.</td>
                           </tr>
                         ) : (
                           indicators.map((ind) => (
@@ -1598,12 +1942,24 @@ export default function AdminPanel() {
                                 </span>
                               </td>
                               <td style={{ padding: '0.8rem', textAlign: 'center', fontWeight: 800, color: '#bd00ff' }}>{ind.bookingsCount}</td>
-                              <td style={{ padding: '0.8rem' }}>₹{ind.monthlyStrikePrice} / <strong style={{ color: '#10b981' }}>₹{ind.monthlyDiscountPrice}</strong></td>
-                              <td style={{ padding: '0.8rem' }}>₹{ind.annualStrikePrice} / <strong style={{ color: '#10b981' }}>₹{ind.annualDiscountPrice}</strong></td>
+                              <td style={{ padding: '0.8rem' }}>₹{ind.strike1Month ?? 3499} / <strong style={{ color: '#10b981' }}>₹{ind.price1Month ?? 1749}</strong></td>
+                              <td style={{ padding: '0.8rem' }}>₹{ind.strike3Months ?? 7999} / <strong style={{ color: '#10b981' }}>₹{ind.price3Months ?? 3999}</strong></td>
+                              <td style={{ padding: '0.8rem' }}>₹{ind.strike6Months ?? 13999} / <strong style={{ color: '#10b981' }}>₹{ind.price6Months ?? 6999}</strong></td>
+                              <td style={{ padding: '0.8rem' }}>₹{ind.strike1Year ?? 22999} / <strong style={{ color: '#10b981' }}>₹{ind.price1Year ?? 11499}</strong></td>
                               <td style={{ padding: '0.8rem', textAlign: 'right' }}>
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                                   <button
-                                    onClick={() => setEditingIndicator(ind)}
+                                    onClick={() => setEditingIndicator({
+                                      ...ind,
+                                      price1Month: ind.price1Month ?? 1749,
+                                      strike1Month: ind.strike1Month ?? 3499,
+                                      price3Months: ind.price3Months ?? 3999,
+                                      strike3Months: ind.strike3Months ?? 7999,
+                                      price6Months: ind.price6Months ?? 6999,
+                                      strike6Months: ind.strike6Months ?? 13999,
+                                      price1Year: ind.price1Year ?? 11499,
+                                      strike1Year: ind.strike1Year ?? 22999
+                                    })}
                                     className="btn-secondary"
                                     style={{ padding: '0.35rem 0.7rem', fontSize: '0.72rem', borderRadius: '6px' }}
                                   >
@@ -1685,83 +2041,167 @@ export default function AdminPanel() {
                             </div>
                           </div>
 
+                          {/* 1 Month Plan */}
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                             <div className="form-group" style={{ marginBottom: 0 }}>
-                              <label style={{ fontSize: '0.7rem' }}>Monthly Strike (₹)</label>
+                              <label style={{ fontSize: '0.7rem' }}>1 Month Strike Price (₹)</label>
                               <input
                                 type="number"
                                 required
-                                value={editingIndicator.monthlyStrikePrice}
-                                onChange={(e) => setEditingIndicator({ ...editingIndicator, monthlyStrikePrice: Number(e.target.value) })}
+                                value={editingIndicator.strike1Month ?? 3499}
+                                onChange={(e) => setEditingIndicator({ ...editingIndicator, strike1Month: Number(e.target.value) })}
                                 style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
                               />
                             </div>
                             <div className="form-group" style={{ marginBottom: 0 }}>
-                              <label style={{ fontSize: '0.7rem' }}>Monthly Discount %</label>
+                              <label style={{ fontSize: '0.7rem' }}>1 Month Discount %</label>
                               <input
                                 type="number"
                                 min="0"
                                 max="100"
-                                value={getDiscountPercent(editingIndicator.monthlyStrikePrice, editingIndicator.monthlyDiscountPrice)}
+                                value={getDiscountPercent(editingIndicator.strike1Month ?? 3499, editingIndicator.price1Month ?? 1749)}
                                 onChange={(e) => {
                                   const pct = Number(e.target.value) || 0;
-                                  const strike = Number(editingIndicator.monthlyStrikePrice) || 0;
+                                  const strike = Number(editingIndicator.strike1Month ?? 3499) || 0;
                                   const disc = strike - Math.round(strike * (pct / 100));
-                                  setEditingIndicator({ ...editingIndicator, monthlyDiscountPrice: disc });
+                                  setEditingIndicator({ ...editingIndicator, price1Month: disc });
                                 }}
                                 style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px', background: 'rgba(189, 0, 255, 0.05)', borderColor: 'rgba(189,0,255,0.2)' }}
                               />
                             </div>
                             <div className="form-group" style={{ marginBottom: 0 }}>
-                              <label style={{ fontSize: '0.7rem' }}>Monthly Discounted (₹)</label>
+                              <label style={{ fontSize: '0.7rem' }}>1 Month Discounted Price (₹)</label>
                               <input
                                 type="number"
                                 required
-                                value={editingIndicator.monthlyDiscountPrice}
-                                onChange={(e) => setEditingIndicator({ ...editingIndicator, monthlyDiscountPrice: Number(e.target.value) })}
+                                value={editingIndicator.price1Month ?? 1749}
+                                onChange={(e) => setEditingIndicator({ ...editingIndicator, price1Month: Number(e.target.value) })}
                                 style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
                               />
-                              {renderSavingsLabel(editingIndicator.monthlyStrikePrice, editingIndicator.monthlyDiscountPrice)}
+                              {renderSavingsLabel(editingIndicator.strike1Month ?? 3499, editingIndicator.price1Month ?? 1749)}
                             </div>
                           </div>
 
+                          {/* 3 Months Plan */}
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                             <div className="form-group" style={{ marginBottom: 0 }}>
-                              <label style={{ fontSize: '0.7rem' }}>Annual Strike (₹)</label>
+                              <label style={{ fontSize: '0.7rem' }}>3 Months Strike Price (₹)</label>
                               <input
                                 type="number"
                                 required
-                                value={editingIndicator.annualStrikePrice}
-                                onChange={(e) => setEditingIndicator({ ...editingIndicator, annualStrikePrice: Number(e.target.value) })}
+                                value={editingIndicator.strike3Months ?? 7999}
+                                onChange={(e) => setEditingIndicator({ ...editingIndicator, strike3Months: Number(e.target.value) })}
                                 style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
                               />
                             </div>
                             <div className="form-group" style={{ marginBottom: 0 }}>
-                              <label style={{ fontSize: '0.7rem' }}>Annual Discount %</label>
+                              <label style={{ fontSize: '0.7rem' }}>3 Months Discount %</label>
                               <input
                                 type="number"
                                 min="0"
                                 max="100"
-                                value={getDiscountPercent(editingIndicator.annualStrikePrice, editingIndicator.annualDiscountPrice)}
+                                value={getDiscountPercent(editingIndicator.strike3Months ?? 7999, editingIndicator.price3Months ?? 3999)}
                                 onChange={(e) => {
                                   const pct = Number(e.target.value) || 0;
-                                  const strike = Number(editingIndicator.annualStrikePrice) || 0;
+                                  const strike = Number(editingIndicator.strike3Months ?? 7999) || 0;
                                   const disc = strike - Math.round(strike * (pct / 100));
-                                  setEditingIndicator({ ...editingIndicator, annualDiscountPrice: disc });
+                                  setEditingIndicator({ ...editingIndicator, price3Months: disc });
                                 }}
                                 style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px', background: 'rgba(189, 0, 255, 0.05)', borderColor: 'rgba(189,0,255,0.2)' }}
                               />
                             </div>
                             <div className="form-group" style={{ marginBottom: 0 }}>
-                              <label style={{ fontSize: '0.7rem' }}>Annual Discounted (₹)</label>
+                              <label style={{ fontSize: '0.7rem' }}>3 Months Discounted Price (₹)</label>
                               <input
                                 type="number"
                                 required
-                                value={editingIndicator.annualDiscountPrice}
-                                onChange={(e) => setEditingIndicator({ ...editingIndicator, annualDiscountPrice: Number(e.target.value) })}
+                                value={editingIndicator.price3Months ?? 3999}
+                                onChange={(e) => setEditingIndicator({ ...editingIndicator, price3Months: Number(e.target.value) })}
                                 style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
                               />
-                              {renderSavingsLabel(editingIndicator.annualStrikePrice, editingIndicator.annualDiscountPrice)}
+                              {renderSavingsLabel(editingIndicator.strike3Months ?? 7999, editingIndicator.price3Months ?? 3999)}
+                            </div>
+                          </div>
+
+                          {/* 6 Months Plan */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.7rem' }}>6 Months Strike Price (₹)</label>
+                              <input
+                                type="number"
+                                required
+                                value={editingIndicator.strike6Months ?? 13999}
+                                onChange={(e) => setEditingIndicator({ ...editingIndicator, strike6Months: Number(e.target.value) })}
+                                style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.7rem' }}>6 Months Discount %</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={getDiscountPercent(editingIndicator.strike6Months ?? 13999, editingIndicator.price6Months ?? 6999)}
+                                onChange={(e) => {
+                                  const pct = Number(e.target.value) || 0;
+                                  const strike = Number(editingIndicator.strike6Months ?? 13999) || 0;
+                                  const disc = strike - Math.round(strike * (pct / 100));
+                                  setEditingIndicator({ ...editingIndicator, price6Months: disc });
+                                }}
+                                style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px', background: 'rgba(189, 0, 255, 0.05)', borderColor: 'rgba(189,0,255,0.2)' }}
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.7rem' }}>6 Months Discounted Price (₹)</label>
+                              <input
+                                type="number"
+                                required
+                                value={editingIndicator.price6Months ?? 6999}
+                                onChange={(e) => setEditingIndicator({ ...editingIndicator, price6Months: Number(e.target.value) })}
+                                style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
+                              />
+                              {renderSavingsLabel(editingIndicator.strike6Months ?? 13999, editingIndicator.price6Months ?? 6999)}
+                            </div>
+                          </div>
+
+                          {/* 1 Year Plan */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.7rem' }}>1 Year Strike Price (₹)</label>
+                              <input
+                                type="number"
+                                required
+                                value={editingIndicator.strike1Year ?? 22999}
+                                onChange={(e) => setEditingIndicator({ ...editingIndicator, strike1Year: Number(e.target.value) })}
+                                style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.7rem' }}>1 Year Discount %</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={getDiscountPercent(editingIndicator.strike1Year ?? 22999, editingIndicator.price1Year ?? 11499)}
+                                onChange={(e) => {
+                                  const pct = Number(e.target.value) || 0;
+                                  const strike = Number(editingIndicator.strike1Year ?? 22999) || 0;
+                                  const disc = strike - Math.round(strike * (pct / 100));
+                                  setEditingIndicator({ ...editingIndicator, price1Year: disc });
+                                }}
+                                style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px', background: 'rgba(189, 0, 255, 0.05)', borderColor: 'rgba(189,0,255,0.2)' }}
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.7rem' }}>1 Year Discounted Price (₹)</label>
+                              <input
+                                type="number"
+                                required
+                                value={editingIndicator.price1Year ?? 11499}
+                                onChange={(e) => setEditingIndicator({ ...editingIndicator, price1Year: Number(e.target.value) })}
+                                style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
+                              />
+                              {renderSavingsLabel(editingIndicator.strike1Year ?? 22999, editingIndicator.price1Year ?? 11499)}
                             </div>
                           </div>
 
@@ -1839,83 +2279,167 @@ export default function AdminPanel() {
                             </div>
                           </div>
 
+                          {/* 1 Month Plan */}
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                             <div className="form-group" style={{ marginBottom: 0 }}>
-                              <label style={{ fontSize: '0.7rem' }}>Monthly Strike (₹)</label>
+                              <label style={{ fontSize: '0.7rem' }}>1 Month Strike Price (₹)</label>
                               <input
                                 type="number"
                                 required
-                                value={newIndicator.monthlyStrikePrice}
-                                onChange={(e) => setNewIndicator({ ...newIndicator, monthlyStrikePrice: Number(e.target.value) })}
+                                value={newIndicator.strike1Month ?? 3499}
+                                onChange={(e) => setNewIndicator({ ...newIndicator, strike1Month: Number(e.target.value) })}
                                 style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
                               />
                             </div>
                             <div className="form-group" style={{ marginBottom: 0 }}>
-                              <label style={{ fontSize: '0.7rem' }}>Monthly Discount %</label>
+                              <label style={{ fontSize: '0.7rem' }}>1 Month Discount %</label>
                               <input
                                 type="number"
                                 min="0"
                                 max="100"
-                                value={getDiscountPercent(newIndicator.monthlyStrikePrice, newIndicator.monthlyDiscountPrice)}
+                                value={getDiscountPercent(newIndicator.strike1Month ?? 3499, newIndicator.price1Month ?? 1749)}
                                 onChange={(e) => {
                                   const pct = Number(e.target.value) || 0;
-                                  const strike = Number(newIndicator.monthlyStrikePrice) || 0;
+                                  const strike = Number(newIndicator.strike1Month ?? 3499) || 0;
                                   const disc = strike - Math.round(strike * (pct / 100));
-                                  setNewIndicator({ ...newIndicator, monthlyDiscountPrice: disc });
+                                  setNewIndicator({ ...newIndicator, price1Month: disc });
                                 }}
                                 style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px', background: 'rgba(189, 0, 255, 0.05)', borderColor: 'rgba(189,0,255,0.2)' }}
                               />
                             </div>
                             <div className="form-group" style={{ marginBottom: 0 }}>
-                              <label style={{ fontSize: '0.7rem' }}>Monthly Discounted (₹)</label>
+                              <label style={{ fontSize: '0.7rem' }}>1 Month Discounted Price (₹)</label>
                               <input
                                 type="number"
                                 required
-                                value={newIndicator.monthlyDiscountPrice}
-                                onChange={(e) => setNewIndicator({ ...newIndicator, monthlyDiscountPrice: Number(e.target.value) })}
+                                value={newIndicator.price1Month ?? 1749}
+                                onChange={(e) => setNewIndicator({ ...newIndicator, price1Month: Number(e.target.value) })}
                                 style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
                               />
-                              {renderSavingsLabel(newIndicator.monthlyStrikePrice, newIndicator.monthlyDiscountPrice)}
+                              {renderSavingsLabel(newIndicator.strike1Month ?? 3499, newIndicator.price1Month ?? 1749)}
                             </div>
                           </div>
 
+                          {/* 3 Months Plan */}
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                             <div className="form-group" style={{ marginBottom: 0 }}>
-                              <label style={{ fontSize: '0.7rem' }}>Annual Strike (₹)</label>
+                              <label style={{ fontSize: '0.7rem' }}>3 Months Strike Price (₹)</label>
                               <input
                                 type="number"
                                 required
-                                value={newIndicator.annualStrikePrice}
-                                onChange={(e) => setNewIndicator({ ...newIndicator, annualStrikePrice: Number(e.target.value) })}
+                                value={newIndicator.strike3Months ?? 7999}
+                                onChange={(e) => setNewIndicator({ ...newIndicator, strike3Months: Number(e.target.value) })}
                                 style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
                               />
                             </div>
                             <div className="form-group" style={{ marginBottom: 0 }}>
-                              <label style={{ fontSize: '0.7rem' }}>Annual Discount %</label>
+                              <label style={{ fontSize: '0.7rem' }}>3 Months Discount %</label>
                               <input
                                 type="number"
                                 min="0"
                                 max="100"
-                                value={getDiscountPercent(newIndicator.annualStrikePrice, newIndicator.annualDiscountPrice)}
+                                value={getDiscountPercent(newIndicator.strike3Months ?? 7999, newIndicator.price3Months ?? 3999)}
                                 onChange={(e) => {
                                   const pct = Number(e.target.value) || 0;
-                                  const strike = Number(newIndicator.annualStrikePrice) || 0;
+                                  const strike = Number(newIndicator.strike3Months ?? 7999) || 0;
                                   const disc = strike - Math.round(strike * (pct / 100));
-                                  setNewIndicator({ ...newIndicator, annualDiscountPrice: disc });
+                                  setNewIndicator({ ...newIndicator, price3Months: disc });
                                 }}
                                 style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px', background: 'rgba(189, 0, 255, 0.05)', borderColor: 'rgba(189,0,255,0.2)' }}
                               />
                             </div>
                             <div className="form-group" style={{ marginBottom: 0 }}>
-                              <label style={{ fontSize: '0.7rem' }}>Annual Discounted (₹)</label>
+                              <label style={{ fontSize: '0.7rem' }}>3 Months Discounted Price (₹)</label>
                               <input
                                 type="number"
                                 required
-                                value={newIndicator.annualDiscountPrice}
-                                onChange={(e) => setNewIndicator({ ...newIndicator, annualDiscountPrice: Number(e.target.value) })}
+                                value={newIndicator.price3Months ?? 3999}
+                                onChange={(e) => setNewIndicator({ ...newIndicator, price3Months: Number(e.target.value) })}
                                 style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
                               />
-                              {renderSavingsLabel(newIndicator.annualStrikePrice, newIndicator.annualDiscountPrice)}
+                              {renderSavingsLabel(newIndicator.strike3Months ?? 7999, newIndicator.price3Months ?? 3999)}
+                            </div>
+                          </div>
+
+                          {/* 6 Months Plan */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.7rem' }}>6 Months Strike Price (₹)</label>
+                              <input
+                                type="number"
+                                required
+                                value={newIndicator.strike6Months ?? 13999}
+                                onChange={(e) => setNewIndicator({ ...newIndicator, strike6Months: Number(e.target.value) })}
+                                style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.7rem' }}>6 Months Discount %</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={getDiscountPercent(newIndicator.strike6Months ?? 13999, newIndicator.price6Months ?? 6999)}
+                                onChange={(e) => {
+                                  const pct = Number(e.target.value) || 0;
+                                  const strike = Number(newIndicator.strike6Months ?? 13999) || 0;
+                                  const disc = strike - Math.round(strike * (pct / 100));
+                                  setNewIndicator({ ...newIndicator, price6Months: disc });
+                                }}
+                                style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px', background: 'rgba(189, 0, 255, 0.05)', borderColor: 'rgba(189,0,255,0.2)' }}
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.7rem' }}>6 Months Discounted Price (₹)</label>
+                              <input
+                                type="number"
+                                required
+                                value={newIndicator.price6Months ?? 6999}
+                                onChange={(e) => setNewIndicator({ ...newIndicator, price6Months: Number(e.target.value) })}
+                                style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
+                              />
+                              {renderSavingsLabel(newIndicator.strike6Months ?? 13999, newIndicator.price6Months ?? 6999)}
+                            </div>
+                          </div>
+
+                          {/* 1 Year Plan */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.7rem' }}>1 Year Strike Price (₹)</label>
+                              <input
+                                type="number"
+                                required
+                                value={newIndicator.strike1Year ?? 22999}
+                                onChange={(e) => setNewIndicator({ ...newIndicator, strike1Year: Number(e.target.value) })}
+                                style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.7rem' }}>1 Year Discount %</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={getDiscountPercent(newIndicator.strike1Year ?? 22999, newIndicator.price1Year ?? 11499)}
+                                onChange={(e) => {
+                                  const pct = Number(e.target.value) || 0;
+                                  const strike = Number(newIndicator.strike1Year ?? 22999) || 0;
+                                  const disc = strike - Math.round(strike * (pct / 100));
+                                  setNewIndicator({ ...newIndicator, price1Year: disc });
+                                }}
+                                style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px', background: 'rgba(189, 0, 255, 0.05)', borderColor: 'rgba(189,0,255,0.2)' }}
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.7rem' }}>1 Year Discounted Price (₹)</label>
+                              <input
+                                type="number"
+                                required
+                                value={newIndicator.price1Year ?? 11499}
+                                onChange={(e) => setNewIndicator({ ...newIndicator, price1Year: Number(e.target.value) })}
+                                style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px' }}
+                              />
+                              {renderSavingsLabel(newIndicator.strike1Year ?? 22999, newIndicator.price1Year ?? 11499)}
                             </div>
                           </div>
 
@@ -2029,6 +2553,32 @@ export default function AdminPanel() {
                         />
                         {renderSavingsLabel(newPricing.annualStrikePrice, newPricing.annualDiscountPrice)}
                       </div>
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                      <label style={{ fontSize: '0.7rem' }}>Global Discount Percent (%)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        required
+                        placeholder="e.g. 10"
+                        style={{
+                          width: '100%',
+                          padding: '0.6rem 0.8rem',
+                          fontSize: '0.82rem',
+                          borderRadius: '8px',
+                          background: 'rgba(255, 255, 255, 0.03)',
+                          border: '2px solid rgba(255, 255, 255, 0.06)',
+                          color: '#fff',
+                          boxSizing: 'border-box'
+                        }}
+                        value={newPricing.globalDiscountPercent ?? 0}
+                        onChange={(e) => setNewPricing({ ...newPricing, globalDiscountPercent: Number(e.target.value) })}
+                      />
+                      <span style={{ fontSize: '0.68rem', color: '#00D4AA', marginTop: '4px', display: 'block', fontWeight: '800' }}>
+                        Applied globally to discount all pricing plans for all indicators. Set to 0 to disable.
+                      </span>
                     </div>
 
                     <div className="form-group" style={{ marginBottom: '0.5rem' }}>

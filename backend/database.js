@@ -106,6 +106,10 @@ const configSchema = new mongoose.Schema({
   maintenanceMode: {
     type: Boolean,
     default: false
+  },
+  globalDiscountPercent: {
+    type: Number,
+    default: 0
   }
 }, { strict: true });
 
@@ -189,6 +193,38 @@ const indicatorSchema = new mongoose.Schema({
     type: Number,
     default: 999
   },
+  price1Month: {
+    type: Number,
+    default: 1749
+  },
+  strike1Month: {
+    type: Number,
+    default: 3499
+  },
+  price3Months: {
+    type: Number,
+    default: 3999
+  },
+  strike3Months: {
+    type: Number,
+    default: 7999
+  },
+  price6Months: {
+    type: Number,
+    default: 6999
+  },
+  strike6Months: {
+    type: Number,
+    default: 13999
+  },
+  price1Year: {
+    type: Number,
+    default: 11499
+  },
+  strike1Year: {
+    type: Number,
+    default: 22999
+  },
   countdownTargetDate: {
     type: Date,
     default: null
@@ -220,9 +256,9 @@ const webContentSchema = new mongoose.Schema({
   heroDesc: { type: String, default: 'Ciper uses advanced neural networks to map out the market in real-time. Detects support/resistance zones, high-probability convergence areas, and breakouts automatically.' },
   
   heroSlide2Badge: { type: String, default: 'Featured Indicator' },
-  heroSlide2Title1: { type: String, default: 'Ciper TL' },
-  heroSlide2Title2: { type: String, default: 'Trend Scanner' },
-  heroSlide2Desc: { type: String, default: 'Automatically plot high-probability trend lines and identify chart pattern breakout zones in higher timeframes (H1, H4, D1).' },
+  heroSlide2Title1: { type: String, default: 'Ciper Eye' },
+  heroSlide2Title2: { type: String, default: 'Signal Engine' },
+  heroSlide2Desc: { type: String, default: 'Generates high-probability buy/sell signals. Integrate it with your existing strategy to get precise entry, take profit (TP), and stop loss (SL) levels.' },
 
   accuracyValue: { type: Number, default: 94 },
   
@@ -275,6 +311,81 @@ const refreshTokenSchema = new mongoose.Schema({
   }
 }, { strict: true });
 
+const userSchema = new mongoose.Schema({
+  email: {
+    type: String,
+    required: [true, 'Email is required'],
+    unique: true,
+    trim: true,
+    lowercase: true
+  },
+  name: {
+    type: String,
+    trim: true
+  },
+  tradingViewUsername: {
+    type: String,
+    trim: true
+  },
+  phone: {
+    type: String,
+    trim: true
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+}, { strict: true });
+
+const subscriptionSchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  planId: {
+    type: String,
+    required: true
+  },
+  planName: {
+    type: String,
+    required: true
+  },
+  amount: {
+    type: Number,
+    required: true
+  },
+  startDate: {
+    type: Date,
+    required: true,
+    default: Date.now
+  },
+  endDate: {
+    type: Date,
+    required: true
+  },
+  razorpayOrderId: {
+    type: String,
+    required: true
+  },
+  razorpayPaymentId: {
+    type: String,
+    required: true
+  },
+  status: {
+    type: String,
+    enum: ['active', 'expired', 'revoked'],
+    default: 'active'
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+}, { strict: true });
+
+const User = mongoose.model('User', userSchema);
+const Subscription = mongoose.model('Subscription', subscriptionSchema);
+
 const Prebooking = mongoose.model('Prebooking', prebookingSchema);
 const Config = mongoose.model('Config', configSchema);
 const Referral = mongoose.model('Referral', referralSchema);
@@ -290,10 +401,10 @@ async function ensureDefaultConfig() {
       { key: 'system_settings' },
       {
         $setOnInsert: {
-          monthlyDiscountPrice: 299,
-          monthlyStrikePrice: 399,
-          annualDiscountPrice: 999,
-          annualStrikePrice: 1200,
+          monthlyDiscountPrice: 149,
+          monthlyStrikePrice: 199,
+          annualDiscountPrice: 499,
+          annualStrikePrice: 599,
           indicatorMode: 'prebook',
           countdownTargetDate: null,
           maintenanceMode: false
@@ -301,7 +412,19 @@ async function ensureDefaultConfig() {
       },
       { upsert: true }
     );
-    console.log('Default system settings configuration initialized.');
+    // Force update existing system settings to 50% price
+    await Config.updateOne(
+      { key: 'system_settings' },
+      {
+        $set: {
+          monthlyDiscountPrice: 149,
+          monthlyStrikePrice: 199,
+          annualDiscountPrice: 499,
+          annualStrikePrice: 599
+        }
+      }
+    );
+    console.log('Default system settings configuration initialized and updated.');
   } catch (err) {
     if (err.code === 11000) {
       console.log('Default system settings already initialized (duplicate key handled).');
@@ -318,38 +441,100 @@ async function ensureDefaultIndicators() {
     if (count === 0) {
       const defaultIndicators = [
         {
-          title: "Ciper TL (Trend Line)",
-          desc: "Plots high-probability trend lines and automatically highlights chart pattern breakout vectors in H1/H4 timeframes.",
+          title: "Ciper Eye",
+          desc: "Generates high-probability buy/sell signals. Integrate it with your existing strategy to get precise entry, take profit (TP), and stop loss (SL) levels.",
           status: "Beta Testing",
           icon: "trend",
-          monthlyStrikePrice: 399,
-          monthlyDiscountPrice: 299,
-          annualStrikePrice: 1200,
-          annualDiscountPrice: 999
+          monthlyStrikePrice: 199,
+          monthlyDiscountPrice: 149,
+          annualStrikePrice: 599,
+          annualDiscountPrice: 499,
+          price1Month: 1749,
+          strike1Month: 3499,
+          price3Months: 3999,
+          strike3Months: 7999,
+          price6Months: 6999,
+          strike6Months: 13999,
+          price1Year: 11499,
+          strike1Year: 22999
         },
         {
           title: "Ciper Volume Profile",
           desc: "Visualizes institutional volume distribution, Point of Control (POC), and high-volume nodes directly on your Y-axis.",
           status: "Coming Soon",
           icon: "volume",
-          monthlyStrikePrice: 399,
-          monthlyDiscountPrice: 299,
-          annualStrikePrice: 1200,
-          annualDiscountPrice: 999
+          monthlyStrikePrice: 199,
+          monthlyDiscountPrice: 149,
+          annualStrikePrice: 599,
+          annualDiscountPrice: 499,
+          price1Month: 1749,
+          strike1Month: 3499,
+          price3Months: 3999,
+          strike3Months: 7999,
+          price6Months: 6999,
+          strike6Months: 13999,
+          price1Year: 11499,
+          strike1Year: 22999
         },
         {
           title: "Ciper Liquidity Grab",
           desc: "Tracks retail stop-loss clusters and alerts you to potential stop-hunts and manipulation zones prior to major market pivots.",
           status: "Coming Soon",
           icon: "liquidity",
-          monthlyStrikePrice: 399,
-          monthlyDiscountPrice: 299,
-          annualStrikePrice: 1200,
-          annualDiscountPrice: 999
+          monthlyStrikePrice: 199,
+          monthlyDiscountPrice: 149,
+          annualStrikePrice: 599,
+          annualDiscountPrice: 499,
+          price1Month: 1749,
+          strike1Month: 3499,
+          price3Months: 3999,
+          strike3Months: 7999,
+          price6Months: 6999,
+          strike6Months: 13999,
+          price1Year: 11499,
+          strike1Year: 22999
         }
       ];
       await Indicator.insertMany(defaultIndicators);
       console.log('Default indicators seeded successfully.');
+    } else {
+      // Migrate existing indicators to add plan price defaults if missing
+      await Indicator.updateMany(
+        { price1Month: { $exists: false } },
+        {
+          $set: {
+            price1Month: 1749,
+            strike1Month: 3499,
+            price3Months: 3999,
+            strike3Months: 7999,
+            price6Months: 6999,
+            strike6Months: 13999,
+            price1Year: 11499,
+            strike1Year: 22999
+          }
+        }
+      );
+
+      // Force update existing indicators to 50% price (monthly/annual)
+      await Indicator.updateMany({}, {
+        $set: {
+          monthlyStrikePrice: 199,
+          monthlyDiscountPrice: 149,
+          annualStrikePrice: 599,
+          annualDiscountPrice: 499
+        }
+      });
+      // Rename any indicator with TL/Trend Line title to Ciper Eye and update description
+      await Indicator.updateMany(
+        { title: { $regex: /Ciper TL|Trend Line/i } },
+        {
+          $set: {
+            title: "Ciper Eye",
+            desc: "Generates high-probability buy/sell signals. Integrate it with your existing strategy to get precise entry, take profit (TP), and stop loss (SL) levels."
+          }
+        }
+      );
+      console.log('Existing indicators updated to new prices & Ciper Eye branding.');
     }
   } catch (err) {
     console.error('Error seeding default indicators:', err);
@@ -368,9 +553,9 @@ async function ensureDefaultWebContent() {
           heroTitle2: "Your Market Edge",
           heroDesc: "Ciper uses advanced neural networks to map out the market in real-time. Detects support/resistance zones, high-probability convergence areas, and breakouts automatically.",
           heroSlide2Badge: "Featured Indicator",
-          heroSlide2Title1: "Ciper TL",
-          heroSlide2Title2: "Trend Scanner",
-          heroSlide2Desc: "Automatically plot high-probability trend lines and identify chart pattern breakout zones in higher timeframes (H1, H4, D1).",
+          heroSlide2Title1: "Ciper Eye",
+          heroSlide2Title2: "Signal Engine",
+          heroSlide2Desc: "Generates high-probability buy/sell signals. Integrate it with your existing strategy to get precise entry, take profit (TP), and stop loss (SL) levels.",
           accuracyValue: 94,
           stat1Num: "730K",
           stat1Label: "Calculations/sec",
@@ -396,7 +581,18 @@ async function ensureDefaultWebContent() {
       },
       { upsert: true }
     );
-    console.log('Default Web Content copy configuration initialized.');
+    // Force rename any existing WebContent values referring to Ciper TL
+    await WebContent.updateOne(
+      { key: 'landing_page_copy' },
+      {
+        $set: {
+          heroSlide2Title1: "Ciper Eye",
+          heroSlide2Title2: "Signal Engine",
+          heroSlide2Desc: "Generates high-probability buy/sell signals. Integrate it with your existing strategy to get precise entry, take profit (TP), and stop loss (SL) levels."
+        }
+      }
+    );
+    console.log('Default Web Content copy configuration initialized & branded.');
   } catch (err) {
     if (err.code === 11000) {
       console.log('Default Web Content copy configuration already initialized (duplicate key handled).');
@@ -419,6 +615,6 @@ mongoose.connection.on('connected', () => {
   }, 500);
 });
 
-module.exports = { Prebooking, Config, Referral, Admin, Indicator, WebContent, RefreshToken };
+module.exports = { Prebooking, Config, Referral, Admin, Indicator, WebContent, RefreshToken, User, Subscription };
 
 

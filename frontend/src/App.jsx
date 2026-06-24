@@ -147,6 +147,171 @@ function IndicatorCard({ indicator, referralDiscount, onPrebook, getMonthlyPrice
   );
 }
 
+function TradeSignalSimulator() {
+  const [activeSignal, setActiveSignal] = useState({
+    symbol: 'BTC/USDT',
+    type: 'BUY',
+    timeframe: 'H4',
+    entry: '₹5,845,200',
+    tp1: '₹6,050,000',
+    tp2: '₹6,220,000',
+    sl: '₹5,680,000',
+    progress: 45,
+    status: 'Analyzing Breakout Vectors...',
+    timestamp: 'Active'
+  });
+
+  const [terminalLogs, setTerminalLogs] = useState([
+    'Initializing Ciper Eye Neural Core v4.2.0...',
+    'Connecting to live market data streams...',
+    'Scan complete: Multi-timeframe convergence confirmed.'
+  ]);
+
+  useEffect(() => {
+    const signals = [
+      {
+        symbol: 'BTC/USDT',
+        type: 'BUY',
+        timeframe: 'H4',
+        entry: '₹5,845,200',
+        tp1: '₹6,050,000',
+        tp2: '₹6,220,000',
+        sl: '₹5,680,000',
+        progress: 68,
+        status: 'Bullish breakout confirmed at H4 trend line resistance.',
+        timestamp: 'Active'
+      },
+      {
+        symbol: 'ETH/USDT',
+        type: 'BUY',
+        timeframe: 'H1',
+        entry: '₹312,450',
+        tp1: '₹324,000',
+        tp2: '₹335,000',
+        sl: '₹304,000',
+        progress: 85,
+        status: 'TP1 Hit! Targeting TP2. Moving Stop Loss to Entry.',
+        timestamp: 'Active'
+      },
+      {
+        symbol: 'SOL/USDT',
+        type: 'SELL',
+        timeframe: 'D1',
+        entry: '₹12,480',
+        tp1: '₹11,600',
+        tp2: '₹10,800',
+        sl: '₹13,100',
+        progress: 32,
+        status: 'Descending channel breach. Bearish delta imbalance detected.',
+        timestamp: 'Active'
+      }
+    ];
+
+    const logTemplates = [
+      'Scanning H1, H4, D1 structural pivots...',
+      'Detected institutional liquidity sweep at support node.',
+      'Order block imbalance delta expanding (+18.4%).',
+      'Calculating Standard Deviation Band exhaustion limits...',
+      'Plotting mathematical vector convergence zones...',
+      'Calculated signal accuracy: 94.2% based on backtest weights.'
+    ];
+
+    let signalIndex = 0;
+    
+    const interval = setInterval(() => {
+      signalIndex = (signalIndex + 1) % signals.length;
+      const nextSignal = signals[signalIndex];
+      setActiveSignal(nextSignal);
+      
+      setTerminalLogs(prev => {
+        const randomLog = logTemplates[Math.floor(Math.random() * logTemplates.length)];
+        const newLogs = [...prev.slice(1), `[${new Date().toLocaleTimeString()}] ${randomLog}`];
+        return newLogs;
+      });
+    }, 4500);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="live-signal-simulator">
+      <div className="simulator-header">
+        <div className="simulator-pulse-title">
+          <span className="live-dot animate-pulse"></span>
+          <span>LIVE SIGNAL MONITOR</span>
+        </div>
+        <div className="simulator-engine-label">CIPER EYE v4.2</div>
+      </div>
+
+      <div className="simulator-grid">
+        <div className="simulator-detail-pane">
+          <div className="detail-row">
+            <span className="detail-label">Asset / TF</span>
+            <span className="detail-value highlight-symbol">{activeSignal.symbol} <span className="tf-badge">{activeSignal.timeframe}</span></span>
+          </div>
+
+          <div className="detail-row">
+            <span className="detail-label">Direction</span>
+            <span className={`detail-value signal-direction ${activeSignal.type.toLowerCase()}`}>
+              {activeSignal.type === 'BUY' ? '▲ BUY / LONG' : '▼ SELL / SHORT'}
+            </span>
+          </div>
+
+          <div className="detail-row">
+            <span className="detail-label">Entry Zone</span>
+            <span className="detail-value entry-price">{activeSignal.entry}</span>
+          </div>
+        </div>
+
+        <div className="simulator-target-pane">
+          <div className="target-item tp">
+            <div className="target-item-header">
+              <span>Take Profit 1</span>
+              <span className="tp-val">{activeSignal.tp1}</span>
+            </div>
+            <div className="target-progress-bar">
+              <div className="target-progress-fill tp" style={{ width: `${activeSignal.progress}%` }}></div>
+            </div>
+          </div>
+
+          <div className="target-item tp2">
+            <div className="target-item-header">
+              <span>Take Profit 2</span>
+              <span className="tp-val">{activeSignal.tp2}</span>
+            </div>
+            <div className="target-progress-bar">
+              <div className="target-progress-fill tp2" style={{ width: `${Math.max(0, activeSignal.progress - 30)}%` }}></div>
+            </div>
+          </div>
+
+          <div className="target-item sl">
+            <div className="target-item-header">
+              <span>Stop Loss</span>
+              <span className="sl-val">{activeSignal.sl}</span>
+            </div>
+            <div className="target-progress-bar">
+              <div className="target-progress-fill sl" style={{ width: '10%' }}></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="simulator-status-bar">
+        <span className="status-label">Status:</span>
+        <span className="status-message">{activeSignal.status}</span>
+      </div>
+
+      <div className="simulator-terminal">
+        {terminalLogs.map((log, index) => (
+          <div key={index} className="terminal-line">
+            <span className="terminal-prompt">&gt;</span> {log}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const container = useRef();
   const heroMockupWrapperRef = useRef();
@@ -160,17 +325,20 @@ function App() {
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Dynamic Routing state
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
+
+  const [bannerDismissed, setBannerDismissed] = useState(
+    localStorage.getItem('ciper_prebook_banner_dismissed') === 'true'
+  );
 
 
 
   // System dynamic configuration
   const [systemConfig, setSystemConfig] = useState({
-    monthlyDiscountPrice: 299,
-    monthlyStrikePrice: 399,
-    annualDiscountPrice: 999,
-    annualStrikePrice: 1200,
+    monthlyDiscountPrice: 149,
+    monthlyStrikePrice: 199,
+    annualDiscountPrice: 499,
+    annualStrikePrice: 599,
     indicatorMode: 'prebook',
     countdownTargetDate: null
   });
@@ -183,9 +351,9 @@ function App() {
     heroDesc: "Ciper uses advanced neural networks to map out the market in real-time. Detects support/resistance zones, high-probability convergence areas, and breakouts automatically.",
     
     heroSlide2Badge: "Featured Indicator",
-    heroSlide2Title1: "Ciper TL",
-    heroSlide2Title2: "Trend Scanner",
-    heroSlide2Desc: "Automatically plot high-probability trend lines and identify chart pattern breakout zones in higher timeframes (H1, H4, D1).",
+    heroSlide2Title1: "Ciper Eye",
+    heroSlide2Title2: "Signal Engine",
+    heroSlide2Desc: "Generates high-probability buy/sell signals. Integrate it with your existing strategy to get precise entry, take profit (TP), and stop loss (SL) levels.",
 
     accuracyValue: 94,
     
@@ -312,9 +480,9 @@ function App() {
         if (res.ok) {
           const data = await res.json();
           setAllIndicators(data);
-          // Filter to only keep Trend Line indicator on the user side page
+          // Filter to only keep Trend Line / Eye indicator on the user side page
           const trendOnly = data.filter(
-            (ind) => ind.icon === 'trend' || ind.title.includes('Trend Line') || ind.title.includes('TL')
+            (ind) => ind.icon === 'trend' || ind.title.includes('Trend Line') || ind.title.includes('TL') || ind.title.includes('Eye')
           );
           setIndicatorsList(trendOnly);
         }
@@ -355,43 +523,24 @@ function App() {
   }, []);
 
   const getMonthlyPrice = (indicator = null) => {
-    const basePrice = indicator ? indicator.monthlyDiscountPrice : systemConfig.monthlyDiscountPrice;
+    const basePrice = indicator ? (indicator.price1Month ?? 1749) : (systemConfig.monthlyDiscountPrice ?? 1749);
+    const globalDiscount = systemConfig?.globalDiscountPercent || 0;
+    const gdPrice = globalDiscount > 0 ? Math.round(basePrice * (1 - globalDiscount / 100)) : basePrice;
     if (referralDiscount.discountPercent > 0) {
-      return Math.round(basePrice * (1 - referralDiscount.discountPercent / 100));
+      return Math.round(gdPrice * (1 - referralDiscount.discountPercent / 100));
     }
-    return basePrice;
+    return gdPrice;
   };
 
   const getAnnualPrice = (indicator = null) => {
-    const basePrice = indicator ? indicator.annualDiscountPrice : systemConfig.annualDiscountPrice;
+    const basePrice = indicator ? (indicator.price1Year ?? 11499) : (systemConfig.annualDiscountPrice ?? 11499);
+    const globalDiscount = systemConfig?.globalDiscountPercent || 0;
+    const gdPrice = globalDiscount > 0 ? Math.round(basePrice * (1 - globalDiscount / 100)) : basePrice;
     if (referralDiscount.discountPercent > 0) {
-      return Math.round(basePrice * (1 - referralDiscount.discountPercent / 100));
+      return Math.round(gdPrice * (1 - referralDiscount.discountPercent / 100));
     }
-    return basePrice;
+    return gdPrice;
   };
-
-  const heroSlides = [
-    {
-      badge: webContent.heroBadge || "Ciper AI Platform",
-      titleSpan1: webContent.heroTitle1 || "Automate",
-      titleSpan2: webContent.heroTitle2 || "Your Market Edge",
-      desc: webContent.heroDesc || "Ciper uses advanced neural networks to map out the market in real-time. Detects support/resistance zones, high-probability convergence areas, and breakouts automatically.",
-      primaryBtnText: "Explore Features",
-      primaryAction: () => scrollToSection('features'),
-      secondaryBtnText: "Pre-Book Now",
-      secondaryAction: () => scrollToSection('prebook')
-    },
-    {
-      badge: webContent.heroSlide2Badge || "Featured Indicator",
-      titleSpan1: webContent.heroSlide2Title1 || "Ciper TL",
-      titleSpan2: webContent.heroSlide2Title2 || "Trend Scanner",
-      desc: webContent.heroSlide2Desc || "Automatically plot high-probability trend lines and identify chart pattern breakout zones in higher timeframes (H1, H4, D1).",
-      primaryBtnText: "Pre-Book Now",
-      primaryAction: () => scrollToSection('prebook'),
-      secondaryBtnText: "Learn More",
-      secondaryAction: () => scrollToSection('prebook')
-    }
-  ];
 
   const openPrebookModal = (plan, indicator = null) => {
     setModalPlan(plan || 'annual');
@@ -407,14 +556,6 @@ function App() {
     }, 1500);
     return () => clearTimeout(timer);
   }, []);
-
-  // Auto rotate hero slides every 5.5s
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setActiveHeroSlide((prev) => (prev + 1) % heroSlides.length);
-    }, 5500);
-    return () => clearInterval(timer);
-  }, [indicatorsList]);
 
   // Shrink navbar on scroll
   useEffect(() => {
@@ -625,8 +766,8 @@ function App() {
 
   const indicatorReleaseList = [
     {
-      title: "Ciper TL (Trend Line)",
-      desc: "Plots high-probability trend lines and automatically highlights chart pattern breakout vectors in H1/H4 timeframes.",
+      title: "Ciper Eye",
+      desc: "Generates high-probability buy/sell signals. Integrate it with your existing strategy to get precise entry, take profit (TP), and stop loss (SL) levels.",
       status: "Beta Testing",
       icon: (
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="21" x2="21" y2="3"></line><circle cx="3" cy="21" r="2"></circle><circle cx="21" cy="3" r="2"></circle></svg>
@@ -726,6 +867,12 @@ function App() {
       opacity: 0, 
       duration: 0.8, 
       ease: 'power3.out' 
+    }, "-=0.6")
+    .from('.live-signal-simulator', {
+      y: 40,
+      opacity: 0,
+      duration: 1,
+      ease: 'power3.out'
     }, "-=0.6")
     .from('.hero-buttons', { 
       y: 30, 
@@ -845,6 +992,19 @@ function App() {
       scrollTrigger: {
         trigger: '.bento-section',
         start: 'top 75%'
+      }
+    });
+
+    // About Section Cards Scroll Reveal
+    gsap.from('.about-content-left, .about-pill-card', {
+      y: 50,
+      opacity: 0,
+      stagger: 0.12,
+      duration: 1,
+      ease: 'power3.out',
+      scrollTrigger: {
+        trigger: '.about-section',
+        start: 'top 80%'
       }
     });
 
@@ -1066,6 +1226,72 @@ function App() {
 
   return (
     <div ref={container} style={{ position: 'relative' }}>
+      {!bannerDismissed && currentPath !== '/adminhetraj' && (
+        <div style={{
+          backgroundColor: '#00D4AA',
+          color: '#ffffff',
+          padding: '10px 20px',
+          textAlign: 'center',
+          fontSize: '0.9rem',
+          fontWeight: 'bold',
+          position: 'relative',
+          zIndex: 1001,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: '15px',
+          flexWrap: 'wrap'
+        }}>
+          <span>🔥 LIMITED TIME OFFER: Pre-book now and get your 1st month FREE! (2 months for ₹1,749)</span>
+          <button 
+            onClick={(e) => handleNavClick(e, 'prebook')}
+            style={{
+              background: '#ffffff',
+              color: '#008060',
+              border: 'none',
+              padding: '5px 15px',
+              borderRadius: '20px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              fontSize: '0.8rem',
+              textTransform: 'uppercase',
+              transition: 'all 0.2s ease-in-out'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = '#000000';
+              e.target.style.color = '#ffffff';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = '#ffffff';
+              e.target.style.color = '#008060';
+            }}
+          >
+            Pre-Book Now →
+          </button>
+          <button 
+            onClick={() => {
+              localStorage.setItem('ciper_prebook_banner_dismissed', 'true');
+              setBannerDismissed(true);
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#ffffff',
+              fontSize: '1.2rem',
+              cursor: 'pointer',
+              position: 'absolute',
+              right: '15px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              fontWeight: 'bold',
+              lineHeight: 1
+            }}
+            aria-label="Dismiss banner"
+          >
+            &times;
+          </button>
+        </div>
+      )}
       <StarField />
       
       {/* Dark Background Glow Orbs */}
@@ -1076,7 +1302,7 @@ function App() {
       </div>
 
       {/* Floating Pill Navbar */}
-      <div className="navbar-wrapper">
+      <div className="navbar-wrapper" style={{ top: bannerDismissed || currentPath === '/adminhetraj' ? '20px' : '60px' }}>
         <nav className={`navbar ${isScrolled ? 'scrolled' : ''} ${isMobileMenuOpen ? 'menu-open' : ''}`}>
           <div className="navbar-header-row">
             <Logo color="var(--primary-color)" />
@@ -1085,11 +1311,22 @@ function App() {
             <div className="nav-links">
               <a href="#features" className="magnetic-element" onClick={(e) => handleNavClick(e, 'features')}>Features</a>
               <a href="#testimonials" className="magnetic-element" onClick={(e) => handleNavClick(e, 'testimonials')}>Reviews</a>
-              <a href="/indicators" className="magnetic-element" style={{ color: currentPath === '/indicators' ? 'var(--primary-color)' : '' }} onClick={(e) => { e.preventDefault(); navigateTo('/indicators'); }}>Indicators</a>
-              <a href="#prebook" className="magnetic-element" onClick={(e) => handleNavClick(e, 'prebook')}>Pre-Book</a>
+              <a href="#about" className="magnetic-element" onClick={(e) => handleNavClick(e, 'about')}>About Us</a>
             </div>
 
             <div className="navbar-actions">
+              <div className="nav-socials" style={{ display: 'flex', gap: '10px', marginRight: '15px' }}>
+                <a href="https://t.me/cipertrade" target="_blank" rel="noopener noreferrer" className="nav-social-link magnetic-element" title="Telegram">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path></svg>
+                </a>
+                <a href="https://x.com/cipertrade" target="_blank" rel="noopener noreferrer" className="nav-social-link magnetic-element" title="Twitter / X">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4l11.733 16h4.267l-11.733 -16z"></path><path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772"></path></svg>
+                </a>
+                <a href="https://instagram.com/cipertrade" target="_blank" rel="noopener noreferrer" className="nav-social-link magnetic-element" title="Instagram">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+                </a>
+              </div>
+
               <button className="btn-primary desktop-get-started magnetic-element" style={{ padding: '0.6rem 1.5rem', fontSize: '0.9rem' }} onClick={(e) => handleNavClick(e, 'prebook')}>
                 Get Started
               </button>
@@ -1112,8 +1349,20 @@ function App() {
             <div className="mobile-menu-panel animate-slide-down">
               <a href="#features" onClick={(e) => handleNavClick(e, 'features')}>Features</a>
               <a href="#testimonials" onClick={(e) => handleNavClick(e, 'testimonials')}>Reviews</a>
-              <a href="/indicators" style={{ color: currentPath === '/indicators' ? 'var(--primary-color)' : '' }} onClick={(e) => { e.preventDefault(); setIsMobileMenuOpen(false); navigateTo('/indicators'); }}>Indicators</a>
-              <a href="#prebook" onClick={(e) => handleNavClick(e, 'prebook')}>Pre-Book</a>
+              <a href="#about" onClick={(e) => handleNavClick(e, 'about')}>About Us</a>
+              
+              <div className="mobile-nav-socials" style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '1.2rem', marginBottom: '0.8rem' }}>
+                <a href="https://t.me/cipertrade" target="_blank" rel="noopener noreferrer" className="nav-social-link" title="Telegram">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path></svg>
+                </a>
+                <a href="https://x.com/cipertrade" target="_blank" rel="noopener noreferrer" className="nav-social-link" title="Twitter / X">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4l11.733 16h4.267l-11.733 -16z"></path><path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772"></path></svg>
+                </a>
+                <a href="https://instagram.com/cipertrade" target="_blank" rel="noopener noreferrer" className="nav-social-link" title="Instagram">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+                </a>
+              </div>
+
               <button className="btn-primary" style={{ width: '100%', marginTop: '0.5rem', padding: '0.8rem' }} onClick={(e) => handleNavClick(e, 'prebook')}>
                 Get Started
               </button>
@@ -1158,17 +1407,25 @@ function App() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1.2rem', gap: '1rem', textAlign: 'left' }}>
                     <div>
                       <div style={{ fontSize: '0.68rem', color: 'var(--text-light)', textTransform: 'uppercase', fontWeight: '750', letterSpacing: '0.5px' }}>Monthly Pass</div>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginTop: '4px' }}>
-                        <span style={{ textDecoration: 'line-through', fontSize: '0.8rem', color: 'var(--text-light)' }}>₹{ind.monthlyStrikePrice}</span>
-                        <span style={{ color: 'var(--success-color)', fontWeight: '800', fontSize: '1.2rem' }}>₹{getMonthlyPrice(ind)}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '4px' }}>
+                        {(ind.strike1Month || 3499) > getMonthlyPrice(ind) && (
+                          <span style={{ fontSize: '0.75rem', color: '#64748b', textDecoration: 'line-through' }}>
+                            ₹{(ind.strike1Month || 3499).toLocaleString()}
+                          </span>
+                        )}
+                        <span style={{ color: 'var(--success-color)', fontWeight: '800', fontSize: '1.2rem' }}>₹{getMonthlyPrice(ind).toLocaleString()}</span>
                       </div>
                     </div>
                     <div style={{ borderRight: '1px solid rgba(255,255,255,0.08)' }}></div>
                     <div>
                       <div style={{ fontSize: '0.68rem', color: 'var(--text-light)', textTransform: 'uppercase', fontWeight: '750', letterSpacing: '0.5px' }}>Annual Pass</div>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginTop: '4px' }}>
-                        <span style={{ textDecoration: 'line-through', fontSize: '0.8rem', color: 'var(--text-light)' }}>₹{ind.annualStrikePrice}</span>
-                        <span style={{ color: 'var(--primary-color)', fontWeight: '800', fontSize: '1.2rem' }}>₹{getAnnualPrice(ind)}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '4px' }}>
+                        {(ind.strike1Year || 22999) > getAnnualPrice(ind) && (
+                          <span style={{ fontSize: '0.75rem', color: '#64748b', textDecoration: 'line-through' }}>
+                            ₹{(ind.strike1Year || 22999).toLocaleString()}
+                          </span>
+                        )}
+                        <span style={{ color: 'var(--primary-color)', fontWeight: '800', fontSize: '1.2rem' }}>₹{getAnnualPrice(ind).toLocaleString()}</span>
                       </div>
                     </div>
                   </div>
@@ -1207,116 +1464,88 @@ function App() {
             {/* Left Column: Text Slider */}
             <div className="hero-slider-column">
               <div className="hero-slider-slide" key={activeHeroSlide}>
-                {activeHeroSlide === 1 && (
-                  timeLeft && !timeLeft.expired ? (
-                    /* Active ticking countdown timer */
-                    <div 
-                      className="hero-countdown-container"
-                      style={{
-                        display: 'inline-flex',
-                        gap: '12px',
-                        marginBottom: '1.2rem',
-                        background: 'rgba(189, 0, 255, 0.06)',
-                        border: '2px dashed rgba(189, 0, 255, 0.35)',
-                        padding: '8px 18px',
-                        borderRadius: '16px',
-                        boxShadow: '0 0 20px rgba(189, 0, 255, 0.15)',
-                        alignItems: 'center',
-                        cursor: 'pointer',
-                        transition: 'all 0.3s ease',
-                        userSelect: 'none'
-                      }}
-                      onClick={triggerCelebration}
-                      onMouseEnter={triggerCelebration}
-                    >
-                      <span style={{ fontSize: '0.72rem', color: '#bd00ff', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '1px', marginRight: '6px' }}>💥 Launching In:</span>
-                      
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff', fontFamily: 'monospace' }}>
-                          {String(timeLeft.days).padStart(2, '0')}
-                        </span>
-                        <span style={{ fontSize: '0.55rem', color: '#a78bfa', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Days</span>
-                      </div>
-                      <span style={{ color: '#bd00ff', fontWeight: '900', fontSize: '1.1rem', marginBottom: '8px' }}>:</span>
-                      
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff', fontFamily: 'monospace' }}>
-                          {String(timeLeft.hours).padStart(2, '0')}
-                        </span>
-                        <span style={{ fontSize: '0.55rem', color: '#a78bfa', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Hrs</span>
-                      </div>
-                      <span style={{ color: '#bd00ff', fontWeight: '900', fontSize: '1.1rem', marginBottom: '8px' }}>:</span>
-                      
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff', fontFamily: 'monospace' }}>
-                          {String(timeLeft.minutes).padStart(2, '0')}
-                        </span>
-                        <span style={{ fontSize: '0.55rem', color: '#a78bfa', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Mins</span>
-                      </div>
-                      <span style={{ color: '#bd00ff', fontWeight: '900', fontSize: '1.1rem', marginBottom: '8px' }}>:</span>
-                      
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#bd00ff', fontFamily: 'monospace', textShadow: '0 0 10px rgba(189,0,255,0.4)' }}>
-                          {String(timeLeft.seconds).padStart(2, '0')}
-                        </span>
-                        <span style={{ fontSize: '0.55rem', color: '#bd00ff', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Secs</span>
-                      </div>
+                {systemConfig.indicatorMode === 'prebook' && systemConfig.countdownTargetDate && timeLeft && !timeLeft.expired ? (
+                  /* Active ticking countdown timer */
+                  <div 
+                    className="hero-countdown-container"
+                    style={{
+                      display: 'inline-flex',
+                      gap: '12px',
+                      marginBottom: '1.2rem',
+                      background: 'rgba(189, 0, 255, 0.06)',
+                      border: '2px dashed rgba(189, 0, 255, 0.35)',
+                      padding: '8px 18px',
+                      borderRadius: '16px',
+                      boxShadow: '0 0 20px rgba(189, 0, 255, 0.15)',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                      userSelect: 'none'
+                    }}
+                    onClick={triggerCelebration}
+                    onMouseEnter={triggerCelebration}
+                  >
+                    <span style={{ fontSize: '0.72rem', color: '#bd00ff', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '1px', marginRight: '6px' }}>💥 Launching In:</span>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff', fontFamily: 'monospace' }}>
+                        {String(timeLeft.days).padStart(2, '0')}
+                      </span>
+                      <span style={{ fontSize: '0.55rem', color: '#a78bfa', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Days</span>
                     </div>
-                  ) : (
-                    /* Default Starting Soon Badge when no timer is set or expired */
-                    <div 
-                      className="hero-badge starting-soon-badge"
-                      style={{
-                        background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(249, 115, 22, 0.12))',
-                        border: '1px solid rgba(239, 68, 68, 0.35)',
-                        color: '#fca5a5',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '6px 14px',
-                        borderRadius: '20px',
-                        fontSize: '0.8rem',
-                        fontWeight: '800',
-                        textTransform: 'uppercase',
-                        letterSpacing: '1px',
-                        marginBottom: '1rem',
-                        boxShadow: '0 0 15px rgba(239, 68, 68, 0.15)',
-                        transition: 'all 0.3s ease',
-                        userSelect: 'none'
-                      }}
-                      onClick={triggerCelebration}
-                      onMouseEnter={triggerCelebration}
-                    >
-                      <span className="animate-pulse" style={{ color: '#ef4444' }}>🔴</span> Starting Soon
+                    <span style={{ color: '#bd00ff', fontWeight: '900', fontSize: '1.1rem', marginBottom: '8px' }}>:</span>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff', fontFamily: 'monospace' }}>
+                        {String(timeLeft.hours).padStart(2, '0')}
+                      </span>
+                      <span style={{ fontSize: '0.55rem', color: '#a78bfa', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Hrs</span>
                     </div>
-                  )
+                    <span style={{ color: '#bd00ff', fontWeight: '900', fontSize: '1.1rem', marginBottom: '8px' }}>:</span>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff', fontFamily: 'monospace' }}>
+                        {String(timeLeft.minutes).padStart(2, '0')}
+                      </span>
+                      <span style={{ fontSize: '0.55rem', color: '#a78bfa', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Mins</span>
+                    </div>
+                    <span style={{ color: '#bd00ff', fontWeight: '900', fontSize: '1.1rem', marginBottom: '8px' }}>:</span>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#bd00ff', fontFamily: 'monospace', textShadow: '0 0 10px rgba(189,0,255,0.4)' }}>
+                        {String(timeLeft.seconds).padStart(2, '0')}
+                      </span>
+                      <span style={{ fontSize: '0.55rem', color: '#bd00ff', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Secs</span>
+                    </div>
+                  </div>
+                ) : (
+                  /* Pulse glowing next-gen badge */
+                  <div className="hero-badge next-gen-badge">
+                    <span className="pulse-dot"></span> Ciper Eye Engine
+                  </div>
                 )}
-                <h1>
-                  <span>{heroSlides[activeHeroSlide].titleSpan1}</span> <br />
-                  <span className="gradient">{heroSlides[activeHeroSlide].titleSpan2}</span>
+
+                <h1 className="hero-title">
+                  <span className="hero-title-top">Ciper Eye</span> <br />
+                  <span className="hero-title-gradient">Signal Engine</span>
                 </h1>
-                <p>{heroSlides[activeHeroSlide].desc}</p>
-                <div className="hero-buttons">
-                  <button className="btn-primary magnetic-element" onClick={heroSlides[activeHeroSlide].primaryAction}>
-                    {heroSlides[activeHeroSlide].primaryBtnText}
+                
+                <p className="hero-description">
+                  Automatically plot high-probability trend lines and identify chart pattern breakout zones in higher timeframes (H1, H4, D1). 
+                  Generate high-probability buy/sell signals and integrate them with your existing strategy to get precise entries, take profit (TP), and stop loss (SL) levels.
+                </p>
+
+                {/* Next-Level Trade Signal Simulator */}
+                <TradeSignalSimulator />
+
+                <div className="hero-buttons" style={{ marginTop: '2.5rem' }}>
+                  <button className="btn-primary magnetic-element" onClick={() => scrollToSection('prebook')}>
+                    Pre-Book Now
                   </button>
-                  <button className="btn-secondary" onClick={heroSlides[activeHeroSlide].secondaryAction}>
-                    {heroSlides[activeHeroSlide].secondaryBtnText}
+                  <button className="btn-secondary" onClick={() => scrollToSection('features')}>
+                    Learn More
                   </button>
                 </div>
-              </div>
-              
-              {/* Slider Nav Dots */}
-              <div className="hero-slider-nav">
-                {heroSlides.map((_, idx) => (
-                  <button
-                    key={idx}
-                    className={`hero-slider-dot ${activeHeroSlide === idx ? 'active' : ''}`}
-                    onClick={() => setActiveHeroSlide(idx)}
-                    aria-label={`Go to slide ${idx + 1}`}
-                  />
-                ))}
               </div>
             </div>
           </div>
@@ -1616,7 +1845,55 @@ function App() {
           </div>
         </section>
 
+        {/* About Us Section */}
+        <section className="about-section" id="about">
+          <div className="section-header">
+            <span className="card-badge" style={{ background: 'rgba(0, 87, 255, 0.1)', color: '#66a3ff', border: '1px solid rgba(0,87,255,0.2)' }}>MISSION & TEAM</span>
+            <h2>Deciphering Market Complexity</h2>
+            <p>We build institutional-grade quantitative charting algorithms to empower retail traders with emotionless market execution.</p>
+          </div>
 
+          <div className="about-container">
+            <div className="about-content-left">
+              <h3>Who We Are</h3>
+              <p>
+                At Ciper, we are a collective of algorithmic developers, quantitative analysts, and seasoned market traders. We believe that professional-grade analysis tools shouldn't be restricted to institutional trading desks.
+              </p>
+              <p>
+                Our signature signal engine, <strong>Ciper Eye</strong>, is the culmination of extensive machine learning backtesting, order book imbalance monitoring, and real-time structure modeling. We compress complex macro statistics into clean, actionable visual triggers directly on your charting interface.
+              </p>
+              <p>
+                We do not sell hype, get-rich-quick schemes, or magic data points. We deliver pure mathematical vector patterns and volume delta confirmations to build your sustainable trading edge.
+              </p>
+            </div>
+
+            <div className="about-content-right">
+              <div className="about-pill-card">
+                <div className="pill-icon">🎯</div>
+                <div className="pill-text-col">
+                  <h4>Algorithmic Integrity</h4>
+                  <p>Our models prioritize 94% setup accuracy, focusing on validated support/resistance sweeps and order block vectors.</p>
+                </div>
+              </div>
+
+              <div className="about-pill-card">
+                <div className="pill-icon">⚡</div>
+                <div className="pill-text-col">
+                  <h4>Emotionless Execution</h4>
+                  <p>Eliminate emotional bias, chart fatigue, and second-guessing with clear buy/sell zones, entries, and predefined exits.</p>
+                </div>
+              </div>
+
+              <div className="about-pill-card">
+                <div className="pill-icon">🔮</div>
+                <div className="pill-text-col">
+                  <h4>Continuous R&D</h4>
+                  <p>Our neural core computes multi-timeframe correlation deltas continuously, adapting to shifting volatility trends.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* FAQ Section Removed */}
 
@@ -1679,8 +1956,8 @@ function App() {
             {modalType === 'promo' ? (
               <div className="promo-container">
                 <span className="card-badge coming-soon-badge animate-pulse-glow" style={{ background: 'rgba(189, 0, 255, 0.1)', color: '#d866ff', border: '1px solid rgba(189, 0, 255, 0.3)', padding: '2px 8px', fontSize: '0.6rem', marginBottom: '0.4rem', letterSpacing: '1px' }}>{selectedIndicator ? selectedIndicator.status.toUpperCase() : 'COMING SOON'}</span>
-                <h2>{selectedIndicator ? selectedIndicator.title : 'Ciper TL: Auto Trend Line Generator'}</h2>
-                <p className="promo-subtitle">{selectedIndicator ? selectedIndicator.desc : 'Plots high-probability trend vectors and automatically maps out chart patterns in real-time.'}</p>
+                <h2>{selectedIndicator ? selectedIndicator.title : 'Ciper Eye: ultimate Signal Engine'}</h2>
+                <p className="promo-subtitle">{selectedIndicator ? selectedIndicator.desc : 'Generates high-probability buy/sell signals. Integrate it with your existing strategy to get precise entry, take profit (TP), and stop loss (SL) levels.'}</p>
                 
                 <div className="promo-features">
                   <div className="promo-feature-item">
@@ -1709,9 +1986,16 @@ function App() {
                 <div className="promo-pricing-grid">
                   <div className="promo-price-card" onClick={() => { setModalPlan('monthly'); setModalType('form'); }}>
                     <span className="plan-name">Monthly Special</span>
-                    <div className="price-tag">
-                      <span className="strike">₹{selectedIndicator ? selectedIndicator.monthlyStrikePrice : systemConfig.monthlyStrikePrice}</span>
-                      <span className="discount">₹{getMonthlyPrice(selectedIndicator)}</span>
+                    <div className="price-tag" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      {(selectedIndicator?.strike1Month || 3499) > getMonthlyPrice(selectedIndicator) && (
+                        <span style={{ fontSize: '0.85rem', color: '#64748b', textDecoration: 'line-through' }}>
+                          ₹{(selectedIndicator?.strike1Month || 3499).toLocaleString()}
+                        </span>
+                      )}
+                      <span className="discount">₹{getMonthlyPrice(selectedIndicator).toLocaleString()}</span>
+                      <span style={{ fontSize: '0.72rem', color: '#00D4AA', fontWeight: '800', marginTop: '4px' }}>
+                        (Just ₹{Math.round(getMonthlyPrice(selectedIndicator) / 30)}/day)
+                      </span>
                     </div>
                     <button className="btn-secondary select-btn" onClick={(e) => { e.stopPropagation(); setModalPlan('monthly'); setModalType('form'); }}>
                       {systemConfig.indicatorMode === 'prebook' ? 'Pre-Book Monthly' : 'Book Monthly'}
@@ -1721,9 +2005,16 @@ function App() {
                   <div className="promo-price-card highlighted" onClick={() => { setModalPlan('annual'); setModalType('form'); }}>
                     <div className="best-value-badge">Best Value</div>
                     <span className="plan-name">Annual Special</span>
-                    <div className="price-tag">
-                      <span className="strike">₹{selectedIndicator ? selectedIndicator.annualStrikePrice : systemConfig.annualStrikePrice}</span>
-                      <span className="discount">₹{getAnnualPrice(selectedIndicator)}</span>
+                    <div className="price-tag" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      {(selectedIndicator?.strike1Year || 22999) > getAnnualPrice(selectedIndicator) && (
+                        <span style={{ fontSize: '0.85rem', color: '#64748b', textDecoration: 'line-through' }}>
+                          ₹{(selectedIndicator?.strike1Year || 22999).toLocaleString()}
+                        </span>
+                      )}
+                      <span className="discount">₹{getAnnualPrice(selectedIndicator).toLocaleString()}</span>
+                      <span style={{ fontSize: '0.72rem', color: '#00D4AA', fontWeight: '800', marginTop: '4px' }}>
+                        (Just ₹{Math.round(getAnnualPrice(selectedIndicator) / 365)}/day)
+                      </span>
                     </div>
                     <button className="btn-primary select-btn" onClick={(e) => { e.stopPropagation(); setModalPlan('annual'); setModalType('form'); }}>
                       {systemConfig.indicatorMode === 'prebook' ? 'Pre-Book Annual' : 'Book Annual'}

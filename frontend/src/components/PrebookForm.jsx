@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import gsap from 'gsap';
 
 export default function PrebookForm({ 
-  defaultPlan = 'annual',
+  defaultPlan = '1month',
   systemConfig = {
     monthlyDiscountPrice: 299,
     monthlyStrikePrice: 399,
@@ -11,8 +11,6 @@ export default function PrebookForm({
     indicatorMode: 'prebook'
   },
   referralDiscount = { code: '', discountPercent: 0, name: '' },
-  monthlyPrice = 299,
-  annualPrice = 999,
   selectedIndicator = null
 }) {
   const [formData, setFormData] = useState({ name: '', email: '', tradingViewUsername: '', phone: '', plan: defaultPlan });
@@ -20,6 +18,28 @@ export default function PrebookForm({
   const [isLoading, setIsLoading] = useState(false);
   const [particles, setParticles] = useState([]);
   const formRef = useRef(null);
+
+  const globalDiscount = systemConfig?.globalDiscountPercent || 0;
+  const ind = selectedIndicator || {};
+
+  const p1 = ind.price1Month ?? 1749;
+  const p3 = ind.price3Months ?? 3999;
+  const p6 = ind.price6Months ?? 6999;
+  const p1y = ind.price1Year ?? 11499;
+
+  const s1 = ind.strike1Month ?? 3499;
+  const s3 = ind.strike3Months ?? 7999;
+  const s6 = ind.strike6Months ?? 13999;
+  const s1y = ind.strike1Year ?? 22999;
+
+  const applyGD = (p) => globalDiscount > 0 ? Math.round(p * (1 - globalDiscount / 100)) : p;
+
+  const plans = [
+    { id: '1month', name: '1 Month', price: applyGD(p1), strike: s1, label: `₹${applyGD(p1).toLocaleString()}/mo` },
+    { id: '3months', name: '3 Months', price: applyGD(p3), strike: s3, label: `₹${applyGD(p3).toLocaleString()}/3 mos` },
+    { id: '6months', name: '6 Months', price: applyGD(p6), strike: s6, label: `₹${applyGD(p6).toLocaleString()}/6 mos`, isBest: true },
+    { id: '1year', name: '1 Year', price: applyGD(p1y), strike: s1y, label: `₹${applyGD(p1y).toLocaleString()}/yr` }
+  ];
 
   useEffect(() => {
     setFormData(prev => ({ ...prev, plan: defaultPlan }));
@@ -80,16 +100,20 @@ export default function PrebookForm({
       );
 
       const refCodeVal = sessionStorage.getItem('ciper_referral_code') || '';
-      const indicatorTitleVal = selectedIndicator ? selectedIndicator.title : 'General';
+      const selectedPlanObj = plans.find(p => p.id === formData.plan) || plans[0];
+      let amountVal = selectedPlanObj.price;
+      if (referralDiscount && referralDiscount.discountPercent > 0) {
+        amountVal = Math.round(amountVal * (1 - referralDiscount.discountPercent / 100));
+      }
 
       // 1. Create order on the backend
-      const orderRes = await fetch(`${API_URL}/api/create-order`, {
+      const orderRes = await fetch(`${API_URL}/api/payment/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          plan: formData.plan,
-          indicatorTitle: indicatorTitleVal,
-          refCode: refCodeVal
+          planId: formData.plan,
+          amount: amountVal,
+          currency: "INR"
         })
       });
 
@@ -104,8 +128,8 @@ export default function PrebookForm({
         key: (import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_T4k9SB7UQRjnIJ').replace(/['"]/g, ''),
         amount: orderData.amount,
         currency: orderData.currency,
-        name: 'Ciper AI',
-        description: `Pre-book ${indicatorTitleVal}`,
+        name: 'Ciper Eye',
+        description: `Subscribe to ${selectedPlanObj.name} Plan`,
         order_id: orderData.order_id,
         handler: async function (response) {
           try {
@@ -113,7 +137,7 @@ export default function PrebookForm({
             setStatus({ type: '', message: 'Verifying payment status...' });
 
             // 3. Verify payment signature on backend
-            const verifyRes = await fetch(`${API_URL}/api/verify-payment`, {
+            const verifyRes = await fetch(`${API_URL}/api/payment/verify`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -124,9 +148,9 @@ export default function PrebookForm({
                 email: formData.email,
                 tradingViewUsername: formData.tradingViewUsername,
                 phone: formData.phone,
-                plan: formData.plan,
-                refCode: refCodeVal,
-                indicatorTitle: indicatorTitleVal
+                planId: formData.plan,
+                amount: amountVal,
+                refCode: refCodeVal
               })
             });
 
@@ -136,7 +160,7 @@ export default function PrebookForm({
               throw new Error(verifyData.error || 'Payment signature verification failed.');
             }
 
-            setStatus({ type: 'success', message: 'Payment confirmed! Access will be granted in 24 hours.' });
+            setStatus({ type: 'success', message: 'Payment confirmed! Your subscription is active.' });
             setFormData({ name: '', email: '', tradingViewUsername: '', phone: '', plan: defaultPlan });
             triggerConfetti();
           } catch (err) {
@@ -151,7 +175,7 @@ export default function PrebookForm({
           contact: formData.phone
         },
         theme: {
-          color: '#bd00ff'
+          color: '#00D4AA'
         },
         config: {
           display: {
@@ -193,7 +217,7 @@ export default function PrebookForm({
   };
 
   return (
-    <div className="form-container" ref={formRef} style={{ position: 'relative' }}>
+    <div className="form-container" ref={formRef} style={{ position: 'relative', width: '100%', maxWidth: '480px' }}>
       {/* Confetti particles absolute elements */}
       {particles.map((p) => (
         <div
@@ -213,35 +237,61 @@ export default function PrebookForm({
         />
       ))}
 
-      <h2>{selectedIndicator ? `Pre-Book ${selectedIndicator.title}` : (systemConfig.indicatorMode === 'prebook' ? 'Pay & Pre-Book Access' : 'Book Ciper Indicator Now')}</h2>
+      <h2>Checkout & Subscribe</h2>
       <p>
-        {selectedIndicator 
-          ? `Pre-book ${selectedIndicator.title} to lock in early-access discount pricing before the public launch.`
-          : (systemConfig.indicatorMode === 'prebook' ? 'Pre-book now to secure early-access discount pricing and get instant setup details.' : 'Complete booking form to activate your live trading indicator license.')}
+        Complete the form below and verify payment to activate your live indicator subscription immediately.
       </p>
       <form onSubmit={handleSubmit}>
         <div className="plan-selection-group">
-          <label className="group-label">Select Discount Plan</label>
-          <div className="plan-selector">
-            <button
-              type="button"
-              className={`plan-toggle-btn ${formData.plan === 'monthly' ? 'active' : ''}`}
-              onClick={() => setFormData({ ...formData, plan: 'monthly' })}
-            >
-              <span className="plan-name">Monthly Special</span>
-              <span className="plan-price">₹{monthlyPrice}/mo</span>
-              <span className="plan-strike">₹{selectedIndicator ? selectedIndicator.monthlyStrikePrice : systemConfig.monthlyStrikePrice}/mo</span>
-            </button>
-            <button
-              type="button"
-              className={`plan-toggle-btn ${formData.plan === 'annual' ? 'active' : ''}`}
-              onClick={() => setFormData({ ...formData, plan: 'annual' })}
-            >
-              <span className="badge-best-value">Best Value</span>
-              <span className="plan-name">Annual Special</span>
-              <span className="plan-price">₹{annualPrice}/yr</span>
-              <span className="plan-strike">₹{selectedIndicator ? selectedIndicator.annualStrikePrice : systemConfig.annualStrikePrice}/yr</span>
-            </button>
+          <label className="group-label">Selected Plan</label>
+          <div className="plan-selector" style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: '8px',
+            width: '100%',
+            marginBottom: '1rem'
+          }}>
+            {plans.map((p) => {
+              const isSelected = formData.plan === p.id;
+              let displayPrice = p.price;
+              if (referralDiscount && referralDiscount.discountPercent > 0) {
+                displayPrice = Math.round(p.price * (1 - referralDiscount.discountPercent / 100));
+              }
+              const displayLabel = `₹${displayPrice.toLocaleString()}${p.id === '1month' ? '/mo' : p.id === '3months' ? '/3 mos' : p.id === '6months' ? '/6 mos' : '/yr'}`;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, plan: p.id })}
+                  className={`prebook-plan-btn ${isSelected ? 'selected' : ''}`}
+                  style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0.8rem 0.5rem', minHeight: '62px' }}
+                >
+                  {p.isBest && (
+                    <span style={{
+                      position: 'absolute',
+                      top: '-6px',
+                      background: '#00D4AA',
+                      color: '#000',
+                      fontSize: '0.55rem',
+                      fontWeight: '800',
+                      padding: '1px 6px',
+                      borderRadius: '8px'
+                    }}>
+                      BEST
+                    </span>
+                  )}
+                  <span className="plan-name" style={{ fontWeight: '750', fontSize: '0.82rem' }}>{p.name}</span>
+                  <span className="plan-price" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px', marginTop: '2px' }}>
+                    {p.strike && p.strike > displayPrice && (
+                      <span style={{ fontSize: '0.62rem', textDecoration: 'line-through', opacity: 0.5 }}>
+                        ₹{p.strike.toLocaleString()}
+                      </span>
+                    )}
+                    <span style={{ fontSize: '0.78rem', fontWeight: '800', color: isSelected ? '#000' : '#00D4AA' }}>{displayLabel}</span>
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -289,13 +339,22 @@ export default function PrebookForm({
             placeholder="e.g. +91 98765 43210"
           />
         </div>
-        <button type="submit" className="btn-primary submit-btn" disabled={isLoading}>
-          {isLoading ? 'Processing...' : (systemConfig.indicatorMode === 'prebook' ? 'Pay & Pre-Book' : 'Pay & Book Access')}
+        <button type="submit" className="btn-primary submit-btn" disabled={isLoading} style={{ width: '100%', padding: '0.9rem', marginTop: '1rem', background: '#00D4AA', color: '#000', fontWeight: '800' }}>
+          {isLoading ? 'Processing...' : 'Subscribe & Verify'}
         </button>
       </form>
       
       {status.message && (
-        <div className={`message ${status.type}`}>
+        <div className={`message ${status.type}`} style={{
+          marginTop: '1rem',
+          padding: '0.8rem',
+          borderRadius: '8px',
+          fontSize: '0.82rem',
+          color: status.type === 'success' ? '#10b981' : '#ef4444',
+          background: status.type === 'success' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+          border: status.type === 'success' ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)',
+          textAlign: 'center'
+        }}>
           {status.type === 'success' ? '✨' : '⚠️'} {status.message}
         </div>
       )}

@@ -12,19 +12,25 @@ export default function StarField() {
     let height = (canvas.height = window.innerHeight);
 
     const handleResize = () => {
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
+      const newWidth = window.innerWidth;
+      const newHeight = window.innerHeight;
+      
+      // Avoid resetting canvas on minor height fluctuations (e.g. mobile URL bar show/hide)
+      if (Math.abs(newWidth - width) > 10 || Math.abs(newHeight - height) > 100) {
+        width = canvas.width = newWidth;
+        height = canvas.height = newHeight;
+      }
     };
     window.addEventListener('resize', handleResize);
 
-    // Generate stars
+    // Generate stars with relative coordinates (0 to 1)
     const numStars = 110;
     const stars = [];
 
     for (let i = 0; i < numStars; i++) {
       stars.push({
-        x: Math.random() * width,
-        y: Math.random() * height,
+        x: Math.random(), // 0 to 1
+        y: Math.random(), // 0 to 1
         baseSize: Math.random() * 1.5 + 0.5,
         alpha: Math.random(),
         phase: Math.random() * Math.PI * 2,
@@ -45,15 +51,15 @@ export default function StarField() {
       ctx.clearRect(0, 0, width, height);
 
       stars.forEach((star) => {
-        // Slow drift
-        star.x += star.driftX;
-        star.y += star.driftY;
+        // Slow drift relative to current dimensions
+        star.x += star.driftX / width;
+        star.y += star.driftY / height;
 
         // Loop screen edges
-        if (star.x < 0) star.x = width;
-        if (star.x > width) star.x = 0;
-        if (star.y < 0) star.y = height;
-        if (star.y > height) star.y = 0;
+        if (star.x < 0) star.x = 1;
+        if (star.x > 1) star.x = 0;
+        if (star.y < 0) star.y = 1;
+        if (star.y > 1) star.y = 0;
 
         // Twinkle calculation
         star.phase += star.twinkleSpeed;
@@ -61,14 +67,17 @@ export default function StarField() {
 
         // Parallax scroll calculation: deep stars move slower, closer stars move faster
         const parallaxOffset = (scrollY * (star.baseSize * 0.12)) % height;
-        let drawY = star.y - parallaxOffset;
+        let drawY = (star.y * height) - parallaxOffset;
         if (drawY < 0) drawY += height;
+
+        const drawX = star.x * width;
 
         // Draw star with glow radial gradient
         ctx.beginPath();
-        ctx.arc(star.x, drawY, star.baseSize, 0, Math.PI * 2);
+        ctx.arc(drawX, drawY, star.baseSize, 0, Math.PI * 2);
         
         const isAdminPath = window.location.pathname === '/adminhetraj';
+        const isMobile = width < 768;
         
         if (star.color === '#ffffff') {
           ctx.fillStyle = isAdminPath 
@@ -76,17 +85,19 @@ export default function StarField() {
             : `rgba(255, 255, 255, ${currentAlpha})`;
           ctx.fill();
         } else if (star.color === '#bd00ff') {
-          // Glow effect for neon purple stars
           ctx.fillStyle = `rgba(189, 0, 255, ${currentAlpha})`;
-          ctx.shadowBlur = isAdminPath ? 2 : 8;
-          ctx.shadowColor = '#bd00ff';
+          if (!isMobile) {
+            ctx.shadowBlur = isAdminPath ? 2 : 8;
+            ctx.shadowColor = '#bd00ff';
+          }
           ctx.fill();
           ctx.shadowBlur = 0; // Reset
         } else {
-          // Glow effect for blue stars
           ctx.fillStyle = `rgba(0, 87, 255, ${currentAlpha})`;
-          ctx.shadowBlur = isAdminPath ? 2 : 8;
-          ctx.shadowColor = '#0057ff';
+          if (!isMobile) {
+            ctx.shadowBlur = isAdminPath ? 2 : 8;
+            ctx.shadowColor = '#0057ff';
+          }
           ctx.fill();
           ctx.shadowBlur = 0; // Reset
         }
@@ -113,6 +124,7 @@ export default function StarField() {
         left: 0,
         width: '100vw',
         height: '100vh',
+        display: 'block',
         pointerEvents: 'none',
         zIndex: -3,
         opacity: 0.75

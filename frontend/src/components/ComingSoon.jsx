@@ -30,8 +30,8 @@ export default function ComingSoon({
   }, [allIndicators, activeIndicator]);
 
   const indicator = activeIndicator || (allIndicators.length > 0 ? allIndicators[0] : {
-    title: "Ciper TL (Trend Line)",
-    desc: "Plots high-probability trend lines and automatically highlights chart pattern breakout vectors in H1/H4 timeframes.",
+    title: "Ciper Eye",
+    desc: "Generates high-probability buy/sell signals. Integrate it with your existing strategy to get precise entry, take profit (TP), and stop loss (SL) levels.",
     status: "Beta Testing",
     icon: "trend",
     monthlyStrikePrice: 399,
@@ -42,6 +42,108 @@ export default function ComingSoon({
 
   const monthlyPrice = indicator.monthlyDiscountPrice || 299;
   const annualPrice = indicator.annualDiscountPrice || 999;
+
+  const globalDiscount = systemConfig?.globalDiscountPercent || 0;
+  
+  const getDynamicPlans = () => {
+    const p1 = indicator.price1Month ?? 1749;
+    const p3 = indicator.price3Months ?? 3999;
+    const p6 = indicator.price6Months ?? 6999;
+    const p1y = indicator.price1Year ?? 11499;
+
+    const s1 = indicator.strike1Month ?? 3499;
+    const s3 = indicator.strike3Months ?? 7999;
+    const s6 = indicator.strike6Months ?? 13999;
+    const s1y = indicator.strike1Year ?? 22999;
+
+    const applyGD = (p) => globalDiscount > 0 ? Math.round(p * (1 - globalDiscount / 100)) : p;
+    const applyRef = (p) => referralDiscount.discountPercent > 0 ? Math.round(p * (1 - referralDiscount.discountPercent / 100)) : p;
+
+    const finalP1 = applyRef(applyGD(p1));
+    const finalP3 = applyRef(applyGD(p3));
+    const finalP6 = applyRef(applyGD(p6));
+    const finalP1y = applyRef(applyGD(p1y));
+
+    const discountBadge = globalDiscount > 0 
+      ? `🎉 Special -${globalDiscount}% Global Discount Applied!`
+      : referralDiscount.discountPercent > 0 
+        ? `🎁 Referral -${referralDiscount.discountPercent}% Off Applied!`
+        : null;
+
+    return [
+      {
+        id: '1month',
+        name: '1 Month',
+        price: finalP1,
+        strike: s1,
+        period: '/month',
+        badge: discountBadge,
+        features: [
+          'Full indicator access',
+          '9 alert types',
+          'Video guide',
+          'Email support',
+          'Priority Telegram support',
+          'Strategy update alerts',
+          'Early access to new features'
+        ]
+      },
+      {
+        id: '3months',
+        name: '3 Months',
+        price: finalP3,
+        strike: s3,
+        period: '/3 months',
+        badge: discountBadge,
+        features: [
+          'Full indicator access',
+          '9 alert types',
+          'Video guide',
+          'Email support',
+          'Priority Telegram support',
+          'Strategy update alerts',
+          'Early access to new features'
+        ]
+      },
+      {
+        id: '6months',
+        name: '6 Months',
+        price: finalP6,
+        strike: s6,
+        period: '/6 months',
+        isBestValue: true,
+        badge: discountBadge,
+        features: [
+          'Full indicator access',
+          '9 alert types',
+          'Video guide',
+          'Email support',
+          'Priority Telegram support',
+          'Strategy update alerts',
+          'Early access to new features'
+        ]
+      },
+      {
+        id: '1year',
+        name: '1 Year',
+        price: finalP1y,
+        strike: s1y,
+        period: '/year',
+        badge: discountBadge,
+        features: [
+          'Full indicator access',
+          '9 alert types',
+          'Video guide',
+          'Email support',
+          'Priority Telegram support',
+          'Strategy update alerts',
+          'Early access to new features'
+        ]
+      }
+    ];
+  };
+
+  const dynamicPlans = getDynamicPlans();
 
   const getIndicatorCapabilities = (ind) => {
     if (!ind) return [];
@@ -277,7 +379,7 @@ export default function ComingSoon({
             <div className="direct-chart-wrapper" ref={chartRef}>
               <div className="chart-floating-metrics">
                 <span className="floating-metric">
-                  <span className="indicator-dot"></span> Ciper TL (Trend Line) Scanner
+                  <span className="indicator-dot"></span> Ciper Eye Scanner
                 </span>
                 <span className="floating-metric text-teal">ACTIVE SCAN</span>
                 <span className="floating-metric">Probability: <strong className="text-green">94%</strong></span>
@@ -371,6 +473,28 @@ export default function ComingSoon({
                     filter="drop-shadow(0 0 4px rgba(18,179,179,0.4))"
                   />
 
+                  {/* Buy Signal Dot & Text */}
+                  <g className="buy-signal-marker" style={{ animation: 'pulse-glow 2s infinite' }}>
+                    <circle cx="205" cy="125" r="8" fill="#10b981" opacity="0.3" />
+                    <circle cx="205" cy="125" r="4" fill="#10b981" />
+                    <text x="205" y="142" fill="#10b981" fontSize="9" fontWeight="950" textAnchor="middle" fontFamily="'Outfit', sans-serif" letterSpacing="0.5">BUY</text>
+                  </g>
+
+                  {/* Strategy Entry, TP, SL Lines */}
+                  <g className="strategy-lines" opacity="0.85">
+                    {/* TP Line (Green) */}
+                    <line x1="205" y1="40" x2="380" y2="40" stroke="#10b981" strokeWidth="1" strokeDasharray="3,3" />
+                    <text x="380" y="34" fill="#10b981" fontSize="8" fontWeight="bold" textAnchor="end" fontFamily="monospace">TP Target: $69,800</text>
+
+                    {/* Entry Line (Blue) */}
+                    <line x1="205" y1="90" x2="380" y2="90" stroke="#00D4AA" strokeWidth="1" />
+                    <text x="380" y="84" fill="#00D4AA" fontSize="8" fontWeight="bold" textAnchor="end" fontFamily="monospace">Entry: $67,500</text>
+
+                    {/* SL Line (Red) */}
+                    <line x1="205" y1="125" x2="380" y2="125" stroke="#ef4444" strokeWidth="1" strokeDasharray="3,3" />
+                    <text x="380" y="119" fill="#ef4444" fontSize="8" fontWeight="bold" textAnchor="end" fontFamily="monospace">SL Limit: $66,200</text>
+                  </g>
+
                   {/* Breakout Target Zone */}
                   <g className="target-zone" style={{ transformOrigin: '330px 40px' }}>
                     <circle cx="330" cy="40" r="16" fill="url(#breakout-radial)" />
@@ -413,65 +537,136 @@ export default function ComingSoon({
                 : 'Secure early access pricing now. Subscriptions will launch at higher prices after the beta period.'}
             </p>
             
-            <div className="pricing-cards-grid">
-              {/* Monthly pricing card */}
-              <div 
-                className={`pricing-card-option ${selectedPlan === 'monthly' ? 'active' : ''}`}
-                onClick={() => selectPlanType('monthly')}
-              >
-                <div className="pricing-badge">{referralDiscount.discountPercent > 0 ? `${25 + referralDiscount.discountPercent}% OFF` : '25% OFF'}</div>
-                <h4>Monthly Access</h4>
-                <div className="pricing-amount">
-                  <span className="price-strike">₹{indicator ? indicator.monthlyStrikePrice : systemConfig.monthlyStrikePrice}</span>
-                  <span className="price-discount">₹{monthlyPrice}</span>
-                  <span className="price-period">/ month</span>
-                </div>
-                <div className="price-efficiency-tag">Only ₹{Math.round(monthlyPrice / 30 * 10) / 10} / day</div>
-                <ul className="price-features-list">
-                  {getIndicatorCapabilities(indicator).slice(0, 2).map((feat, i) => (
-                    <li key={i}>{feat.title}</li>
-                  ))}
-                  <li>Real-time Browser Alerts</li>
-                  <li>Multi-device sync</li>
-                </ul>
-                <button 
-                  type="button" 
-                  className="btn-select-plan"
-                  onClick={(e) => { e.stopPropagation(); selectPlanType('monthly'); }}
-                >
-                  {systemConfig.indicatorMode === 'prebook' ? 'Pre-Book Monthly' : 'Book Monthly'}
-                </button>
-              </div>
+            <div className="pricing-cards-grid" style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+              gap: '1.5rem',
+              width: '100%',
+              marginTop: '2rem'
+            }}>
+              {dynamicPlans.map((plan) => {
+                const isSelected = selectedPlan === plan.id;
+                return (
+                  <div
+                    key={plan.id}
+                    className={`pricing-card-option ${plan.isBestValue ? 'best-value-card' : ''} ${isSelected ? 'active' : ''}`}
+                    onClick={() => selectPlanType(plan.id)}
+                    style={{
+                      position: 'relative',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      border: plan.isBestValue 
+                        ? '2px solid #00D4AA' 
+                        : '1px solid rgba(255, 255, 255, 0.05)',
+                      borderRadius: '16px',
+                      padding: '2rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                      boxShadow: plan.isBestValue 
+                        ? '0 8px 30px rgba(0, 212, 170, 0.15)' 
+                        : '0 4px 15px rgba(0, 0, 0, 0.2)',
+                    }}
+                  >
+                    <div>
+                      {plan.isBestValue && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '-12px',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          background: '#00D4AA',
+                          color: '#000',
+                          padding: '4px 14px',
+                          borderRadius: '20px',
+                          fontSize: '0.72rem',
+                          fontWeight: '800',
+                          letterSpacing: '1px',
+                          textTransform: 'uppercase'
+                        }}>
+                          BEST VALUE
+                        </div>
+                      )}
 
-              {/* Annual pricing card */}
-              <div 
-                className={`pricing-card-option best-value-card ${selectedPlan === 'annual' ? 'active' : ''}`}
-                onClick={() => selectPlanType('annual')}
-              >
-                <div className="best-value-ribbon">BEST VALUE</div>
-                <div className="pricing-badge">{referralDiscount.discountPercent > 0 ? `${17 + referralDiscount.discountPercent}% OFF` : '17% OFF'}</div>
-                <h4>Annual Access</h4>
-                <div className="pricing-amount">
-                  <span className="price-strike">₹{indicator ? indicator.annualStrikePrice : systemConfig.annualStrikePrice}</span>
-                  <span className="price-discount">₹{annualPrice}</span>
-                  <span className="price-period">/ year</span>
-                </div>
-                <div className="price-efficiency-tag">Only ₹{Math.round(annualPrice / 365 * 10) / 10} / day</div>
-                <ul className="price-features-list">
-                  {getIndicatorCapabilities(indicator).map((feat, i) => (
-                    <li key={i}>{feat.title}</li>
-                  ))}
-                  <li>Premium Priority Support</li>
-                  <li>Beta Tester Slack Group</li>
-                </ul>
-                <button 
-                  type="button" 
-                  className="btn-select-plan"
-                  onClick={(e) => { e.stopPropagation(); selectPlanType('annual'); }}
-                >
-                  {systemConfig.indicatorMode === 'prebook' ? 'Pre-Book Annual' : 'Book Annual'}
-                </button>
-              </div>
+                      {plan.badge && (
+                        <div style={{
+                          fontSize: '0.7rem',
+                          color: plan.isBestValue ? '#00D4AA' : 'var(--primary-color)',
+                          background: plan.isBestValue ? 'rgba(0, 212, 170, 0.08)' : 'rgba(189, 0, 255, 0.08)',
+                          padding: '4px 10px',
+                          borderRadius: '8px',
+                          marginBottom: '1rem',
+                          fontWeight: '700',
+                          textAlign: 'center',
+                          border: plan.isBestValue ? '1px solid rgba(0, 212, 170, 0.2)' : '1px solid rgba(189, 0, 255, 0.2)'
+                        }}>
+                          {plan.badge}
+                        </div>
+                      )}
+
+                      <h4 style={{ fontSize: '1.4rem', fontWeight: '800', margin: '0 0 0.8rem 0', color: '#fff' }}>
+                        {plan.name}
+                      </h4>
+
+                      <div className="pricing-amount" style={{ marginBottom: '0.4rem', display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'flex-start' }}>
+                        {plan.strike && plan.strike > plan.price && (
+                          <span style={{ fontSize: '0.9rem', color: '#64748b', textDecoration: 'line-through', fontWeight: 'normal' }}>
+                            ₹{plan.strike.toLocaleString()}
+                          </span>
+                        )}
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                          <span style={{ fontSize: '2rem', fontWeight: '900', color: '#fff' }}>
+                            ₹{plan.price.toLocaleString()}
+                          </span>
+                          <span style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>
+                            {plan.period}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div style={{ fontSize: '0.8rem', color: '#00D4AA', fontWeight: '800', marginBottom: '1.5rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        (Just ₹{Math.round(plan.price / (plan.id === '1month' ? 30 : plan.id === '3months' ? 90 : plan.id === '6months' ? 180 : 365))}/day)
+                      </div>
+
+                      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.8rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1.2rem', marginBottom: '2rem' }}>
+                        {plan.features.map((feat, i) => (
+                          <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '0.85rem', color: 'var(--text-light)', textAlign: 'left', lineHeight: '1.4' }}>
+                            <span style={{ color: '#00D4AA', fontWeight: 'bold', fontSize: '1.1rem', lineHeight: '1' }}>✓</span>
+                            <span>{feat}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="btn-select-plan"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        selectPlanType(plan.id);
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '0.8rem 1.5rem',
+                        borderRadius: '30px',
+                        border: 'none',
+                        background: plan.isBestValue 
+                          ? '#00D4AA' 
+                          : 'linear-gradient(135deg, var(--primary-color) 0%, var(--accent-blue) 100%)',
+                        color: plan.isBestValue ? '#000' : '#fff',
+                        fontWeight: '800',
+                        fontSize: '0.9rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        boxShadow: isSelected ? '0 0 15px rgba(189, 0, 255, 0.4)' : 'none'
+                      }}
+                    >
+                      {systemConfig.indicatorMode === 'prebook' ? 'Pre-Book Plan' : 'Subscribe Now'}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

@@ -28,7 +28,7 @@ const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID || '',
   key_secret: process.env.RAZORPAY_KEY_SECRET || ''
 });
-const { Prebooking, Config, Referral, Admin, Indicator, WebContent, RefreshToken } = require('./database');
+const { Prebooking, Config, Referral, Admin, Indicator, WebContent, RefreshToken, User, Subscription } = require('./database');
 
 // Helper to hash passwords using SHA-256 (retained for backward compatibility checks)
 function hashPassword(password) {
@@ -219,7 +219,8 @@ const configSaveSchema = z.object({
     annualStrikePrice: z.coerce.number().nonnegative().optional(),
     indicatorMode: z.enum(['prebook', 'booknow']).optional(),
     countdownTargetDate: z.string().nullable().optional().or(z.literal('')),
-    maintenanceMode: z.boolean().optional()
+    maintenanceMode: z.boolean().optional(),
+    globalDiscountPercent: z.coerce.number().min(0).max(100).optional()
   })
 });
 
@@ -383,7 +384,7 @@ app.get('/api/config', async (req, res) => {
 });
 
 app.post('/api/config', adminAuth, validate(configSaveSchema), async (req, res) => {
-  const { monthlyDiscountPrice, monthlyStrikePrice, annualDiscountPrice, annualStrikePrice, indicatorMode, countdownTargetDate, maintenanceMode } = req.body;
+  const { monthlyDiscountPrice, monthlyStrikePrice, annualDiscountPrice, annualStrikePrice, indicatorMode, countdownTargetDate, maintenanceMode, globalDiscountPercent } = req.body;
   try {
     let config = await Config.findOne({ key: 'system_settings' });
     if (!config) {
@@ -398,6 +399,7 @@ app.post('/api/config', adminAuth, validate(configSaveSchema), async (req, res) 
       config.countdownTargetDate = countdownTargetDate ? new Date(countdownTargetDate) : null;
     }
     if (maintenanceMode !== undefined) config.maintenanceMode = Boolean(maintenanceMode);
+    if (globalDiscountPercent !== undefined) config.globalDiscountPercent = Number(globalDiscountPercent);
     
     await config.save();
     res.json({ message: 'Settings saved successfully', config });
@@ -858,7 +860,17 @@ app.get('/api/admin/indicators', adminAuth, async (req, res) => {
 });
 
 app.post('/api/admin/indicators', adminAuth, async (req, res) => {
-  const { title, desc, status, monthlyStrikePrice, monthlyDiscountPrice, annualStrikePrice, annualDiscountPrice, countdownTargetDate, icon } = req.body;
+  const { 
+    title, desc, status, 
+    monthlyStrikePrice, monthlyDiscountPrice, 
+    annualStrikePrice, annualDiscountPrice, 
+    price1Month, strike1Month,
+    price3Months, strike3Months,
+    price6Months, strike6Months,
+    price1Year, strike1Year,
+    countdownTargetDate, icon 
+  } = req.body;
+  
   if (!title || !desc) {
     return res.status(400).json({ error: 'Title and Description are required' });
   }
@@ -867,10 +879,18 @@ app.post('/api/admin/indicators', adminAuth, async (req, res) => {
       title,
       desc,
       status: status || 'Coming Soon',
-      monthlyStrikePrice: monthlyStrikePrice !== undefined ? Number(monthlyStrikePrice) : 399,
-      monthlyDiscountPrice: monthlyDiscountPrice !== undefined ? Number(monthlyDiscountPrice) : 299,
-      annualStrikePrice: annualStrikePrice !== undefined ? Number(annualStrikePrice) : 1200,
-      annualDiscountPrice: annualDiscountPrice !== undefined ? Number(annualDiscountPrice) : 999,
+      monthlyStrikePrice: monthlyStrikePrice !== undefined ? Number(monthlyStrikePrice) : 199,
+      monthlyDiscountPrice: monthlyDiscountPrice !== undefined ? Number(monthlyDiscountPrice) : 149,
+      annualStrikePrice: annualStrikePrice !== undefined ? Number(annualStrikePrice) : 599,
+      annualDiscountPrice: annualDiscountPrice !== undefined ? Number(annualDiscountPrice) : 499,
+      price1Month: price1Month !== undefined ? Number(price1Month) : 1749,
+      strike1Month: strike1Month !== undefined ? Number(strike1Month) : 3499,
+      price3Months: price3Months !== undefined ? Number(price3Months) : 3999,
+      strike3Months: strike3Months !== undefined ? Number(strike3Months) : 7999,
+      price6Months: price6Months !== undefined ? Number(price6Months) : 6999,
+      strike6Months: strike6Months !== undefined ? Number(strike6Months) : 13999,
+      price1Year: price1Year !== undefined ? Number(price1Year) : 11499,
+      strike1Year: strike1Year !== undefined ? Number(strike1Year) : 22999,
       countdownTargetDate: countdownTargetDate ? new Date(countdownTargetDate) : null,
       icon: icon || 'trend'
     });
@@ -884,7 +904,16 @@ app.post('/api/admin/indicators', adminAuth, async (req, res) => {
 
 app.put('/api/admin/indicators/:id', adminAuth, async (req, res) => {
   const { id } = req.params;
-  const { title, desc, status, monthlyStrikePrice, monthlyDiscountPrice, annualStrikePrice, annualDiscountPrice, countdownTargetDate, icon } = req.body;
+  const { 
+    title, desc, status, 
+    monthlyStrikePrice, monthlyDiscountPrice, 
+    annualStrikePrice, annualDiscountPrice, 
+    price1Month, strike1Month,
+    price3Months, strike3Months,
+    price6Months, strike6Months,
+    price1Year, strike1Year,
+    countdownTargetDate, icon 
+  } = req.body;
   try {
     const indicator = await Indicator.findById(id);
     if (!indicator) {
@@ -897,6 +926,14 @@ app.put('/api/admin/indicators/:id', adminAuth, async (req, res) => {
     if (monthlyDiscountPrice !== undefined) indicator.monthlyDiscountPrice = Number(monthlyDiscountPrice);
     if (annualStrikePrice !== undefined) indicator.annualStrikePrice = Number(annualStrikePrice);
     if (annualDiscountPrice !== undefined) indicator.annualDiscountPrice = Number(annualDiscountPrice);
+    if (price1Month !== undefined) indicator.price1Month = Number(price1Month);
+    if (strike1Month !== undefined) indicator.strike1Month = Number(strike1Month);
+    if (price3Months !== undefined) indicator.price3Months = Number(price3Months);
+    if (strike3Months !== undefined) indicator.strike3Months = Number(strike3Months);
+    if (price6Months !== undefined) indicator.price6Months = Number(price6Months);
+    if (strike6Months !== undefined) indicator.strike6Months = Number(strike6Months);
+    if (price1Year !== undefined) indicator.price1Year = Number(price1Year);
+    if (strike1Year !== undefined) indicator.strike1Year = Number(strike1Year);
     if (countdownTargetDate !== undefined) {
       indicator.countdownTargetDate = countdownTargetDate ? new Date(countdownTargetDate) : null;
     }
@@ -1243,6 +1280,316 @@ app.post('/api/prebook', validate(prebookSchema), async (req, res) => {
     }
     console.error('Error saving pre-booking:', err);
     res.status(500).json({ error: 'Database error occurred' });
+  }
+});
+
+// ==========================================================
+// User Authentication & Access Control Middlewares
+// ==========================================================
+
+function userAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Authorization token required' });
+  }
+  const token = authHeader.split(' ')[1];
+  const jwtSecret = process.env.JWT_SECRET || 'ciper_user_jwt_secret_secure_key_2026_123456';
+
+  try {
+    const decoded = jwt.verify(token, jwtSecret);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Session expired or invalid login. Please log in again.' });
+  }
+}
+
+async function requireActiveSubscription(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({ error: 'User authentication required' });
+  }
+  try {
+    const activeSub = await Subscription.findOne({
+      userId: req.user.id,
+      status: 'active',
+      endDate: { $gt: new Date() }
+    });
+    if (!activeSub) {
+      return res.status(403).json({ error: 'Your subscription has expired. Please renew.' });
+    }
+    req.subscription = activeSub;
+    next();
+  } catch (err) {
+    console.error('Error checking active subscription:', err);
+    res.status(500).json({ error: 'Server error checking subscription' });
+  }
+}
+
+// ==========================================================
+// Razorpay Payment & Subscription API Endpoints
+// ==========================================================
+
+// POST /api/payment/create-order
+app.post('/api/payment/create-order', async (req, res) => {
+  const { planId, amount, currency = "INR" } = req.body;
+  if (!planId || !amount) {
+    return res.status(400).json({ error: 'planId and amount are required' });
+  }
+  try {
+    const options = {
+      amount: Math.round(Number(amount) * 100), // convert to paise
+      currency,
+      receipt: `receipt_sub_${Date.now()}`
+    };
+    const order = await razorpay.orders.create(options);
+    res.json({
+      order_id: order.id,
+      amount: order.amount,
+      currency: order.currency
+    });
+  } catch (err) {
+    console.error('Error creating subscription Razorpay order:', err);
+    res.status(500).json({ error: 'Failed to create Razorpay order' });
+  }
+});
+
+// POST /api/payment/verify
+app.post('/api/payment/verify', async (req, res) => {
+  const {
+    razorpay_order_id,
+    razorpay_payment_id,
+    razorpay_signature,
+    name,
+    email,
+    tradingViewUsername,
+    phone,
+    planId,
+    amount
+  } = req.body;
+
+  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+    return res.status(400).json({ error: 'Missing payment signature details' });
+  }
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required to verify payment' });
+  }
+
+  try {
+    // 1. Verify Razorpay signature
+    const hmac = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || '');
+    hmac.update(razorpay_order_id + '|' + razorpay_payment_id);
+    const generated_signature = hmac.digest('hex');
+
+    if (generated_signature !== razorpay_signature) {
+      return res.status(400).json({ error: 'Payment verification failed! Signature mismatch.' });
+    }
+
+    // 2. Find or create the user
+    let user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) {
+      user = new User({
+        email: email.toLowerCase().trim(),
+        name: name || '',
+        tradingViewUsername: tradingViewUsername || '',
+        phone: phone || ''
+      });
+      await user.save();
+    } else {
+      if (name) user.name = name;
+      if (tradingViewUsername) user.tradingViewUsername = tradingViewUsername;
+      if (phone) user.phone = phone;
+      await user.save();
+    }
+
+    // 3. Determine plan duration
+    let durationDays = 30;
+    let planName = '1 Month Access';
+    if (planId === '1month') {
+      durationDays = 60; // 1 Month pre-book plan gets 60 days
+      planName = '1 Month Pre-Book';
+    } else if (planId === '3months') {
+      durationDays = 90;
+      planName = '3 Months Access';
+    } else if (planId === '6months') {
+      durationDays = 180;
+      planName = '6 Months Access';
+    } else if (planId === '1year') {
+      durationDays = 365;
+      planName = '1 Year Access';
+    }
+
+    const startDate = new Date();
+    const endDate = new Date(startDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
+
+    // 4. Save subscription to MongoDB
+    const subscription = new Subscription({
+      userId: user._id,
+      planId,
+      planName,
+      amount: Number(amount),
+      startDate,
+      endDate,
+      razorpayOrderId: razorpay_order_id,
+      razorpayPaymentId: razorpay_payment_id,
+      status: 'active'
+    });
+    await subscription.save();
+
+    // Send confirmation email
+    const subject = `Ciper Eye Subscription Activated! 🎉`;
+    const text = `Hello ${name || 'Trader'},\n\nYour payment was successful and your subscription is active!\n\nPlan: ${planName}\nValid until: ${endDate.toLocaleDateString()}\n\nBest regards,\nCiper Eye Team`;
+    const html = `<h3>Subscription Activated!</h3><p>Hello <strong>${name || 'Trader'}</strong>,</p><p>Thank you for subscribing to Ciper Eye!</p><p>Your <strong>${planName}</strong> is active until <strong>${endDate.toLocaleDateString()}</strong>.</p>`;
+    sendMailHelper(email, subject, text, html, name);
+
+    res.json({
+      success: true,
+      message: 'Payment verified and subscription saved successfully!',
+      subscription
+    });
+
+  } catch (err) {
+    console.error('Error verifying payment:', err);
+    res.status(500).json({ error: 'Server error verifying payment' });
+  }
+});
+
+// ==========================================================
+// User Authentication Endpoints (Passwordless OTP Flow)
+// ==========================================================
+
+let tempUserOtpStore = {};
+
+app.post('/api/user/request-otp', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+
+  try {
+    const user = await User.findOne({ email: normalizedEmail });
+    if (!user) {
+      return res.status(404).json({ error: 'No active account found with this email. Please purchase a plan first.' });
+    }
+
+    const activeSub = await Subscription.findOne({
+      userId: user._id,
+      status: 'active',
+      endDate: { $gt: new Date() }
+    });
+
+    if (!activeSub) {
+      return res.status(403).json({ error: 'Your subscription has expired. Please renew to access indicators.' });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    tempUserOtpStore[normalizedEmail] = {
+      code: otp,
+      expiresAt: Date.now() + 5 * 60 * 1000 // 5 mins
+    };
+
+    const text = `Your Ciper Eye Login OTP is ${otp}. Valid for 5 minutes.`;
+    const html = `<h3>Ciper Eye Login Verification</h3><p>Your Security OTP is <strong>${otp}</strong>. Valid for 5 minutes.</p>`;
+    await sendMailHelper(normalizedEmail, 'Ciper Eye Login OTP', text, html);
+
+    res.json({ success: true, message: 'OTP sent to registered user email' });
+  } catch (err) {
+    console.error('Error processing user login OTP:', err);
+    res.status(500).json({ error: 'Server error requesting login OTP' });
+  }
+});
+
+app.post('/api/user/verify-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) {
+    return res.status(400).json({ error: 'Email and OTP are required' });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const store = tempUserOtpStore[normalizedEmail];
+
+  if (store && store.code === otp && Date.now() < store.expiresAt) {
+    delete tempUserOtpStore[normalizedEmail]; // clear OTP
+
+    try {
+      const user = await User.findOne({ email: normalizedEmail });
+      const jwtSecret = process.env.JWT_SECRET || 'ciper_user_jwt_secret_secure_key_2026_123456';
+      
+      const token = jwt.sign(
+        { id: user._id, email: user.email, name: user.name },
+        jwtSecret,
+        { expiresIn: '24h' }
+      );
+
+      res.json({ token, email: user.email, name: user.name });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to sign session token' });
+    }
+  } else {
+    res.status(401).json({ error: 'Invalid or expired OTP' });
+  }
+});
+
+// GET /api/indicator/download - Protected route for indicator download
+app.get('/api/indicator/download', userAuth, requireActiveSubscription, (req, res) => {
+  res.json({
+    message: "Subscription verified! Access granted.",
+    downloadUrl: "https://www.tradingview.com/script/CiperEyeFlagshipIndicator/",
+    indicatorTitle: "Ciper Eye Flagship Indicator"
+  });
+});
+
+// ==========================================================
+// Admin Subscription Management Endpoints
+// ==========================================================
+
+// GET /api/admin/subscriptions
+app.get('/api/admin/subscriptions', adminAuth, async (req, res) => {
+  try {
+    const list = await Subscription.find({}).populate('userId').sort({ createdAt: -1 });
+    res.json(list);
+  } catch (err) {
+    console.error('Error fetching admin subscriptions:', err);
+    res.status(500).json({ error: 'Database error fetching subscriptions' });
+  }
+});
+
+// PUT /api/admin/subscriptions/:id/extend
+app.put('/api/admin/subscriptions/:id/extend', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const sub = await Subscription.findById(id);
+    if (!sub) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+    const currentEnd = new Date(sub.endDate);
+    const baseDate = currentEnd > new Date() ? currentEnd : new Date();
+    sub.endDate = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+    sub.status = 'active';
+    await sub.save();
+    res.json({ message: 'Subscription extended by 30 days', subscription: sub });
+  } catch (err) {
+    console.error('Error extending subscription:', err);
+    res.status(500).json({ error: 'Database error extending subscription' });
+  }
+});
+
+// PUT /api/admin/subscriptions/:id/revoke
+app.put('/api/admin/subscriptions/:id/revoke', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const sub = await Subscription.findById(id);
+    if (!sub) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+    sub.status = 'revoked';
+    sub.endDate = new Date();
+    await sub.save();
+    res.json({ message: 'Subscription access revoked successfully', subscription: sub });
+  } catch (err) {
+    console.error('Error revoking subscription:', err);
+    res.status(500).json({ error: 'Database error revoking subscription' });
   }
 });
 
