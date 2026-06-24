@@ -414,6 +414,26 @@ function App() {
     window.dispatchEvent(event);
   };
 
+  // Update page Title and Meta Description dynamically based on path for enhanced SEO
+  useEffect(() => {
+    let title = "Ciper | Next-Gen Trading Indicators & Pattern Detection";
+    let desc = "Secure early access to Ciper AI, the next-gen neural network indicator. Automatically plot high-probability trend lines, detect institutional order block zones, and get precise buy sell signals on TradingView. Join the elite traders using Ciper Trade and Ciper Eye.";
+    
+    if (currentPath === '/indicators') {
+      title = "Ciper AI | Algorithmic Trading Indicators Catalog";
+      desc = "Explore the full catalog of Ciper AI TradingView indicators. Pre-book or access premium scanners, volume profile tools, and liquidity grab detectors.";
+    } else if (currentPath === '/adminhetraj') {
+      title = "Ciper | Secure Admin Portal";
+      desc = "Secure administrative access portal for Ciper AI platform configuration and user lead management.";
+    }
+    
+    document.title = title;
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) {
+      metaDesc.setAttribute('content', desc);
+    }
+  }, [currentPath]);
+
   // Fetch configuration settings on mount
   useEffect(() => {
     const fetchConfig = async () => {

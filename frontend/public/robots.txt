@@ -1,0 +1,10 @@
+# Robots.txt for Ciper Trade & Ciper Eye
+# Optimized for search engines like Google, Bing, Yahoo, and DuckDuckGo
+
+User-agent: *
+Allow: /
+Disallow: /adminhetraj
+
+# Sitemaps
+Sitemap: https://cipertrade.com/sitemap.xml
+Sitemap: https://cipereye.com/sitemap.xml
