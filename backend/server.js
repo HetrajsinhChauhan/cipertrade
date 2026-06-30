@@ -882,11 +882,11 @@ app.post('/api/admin/leads/:id/confirm', adminAuth, async (req, res) => {
     lead.expirationEmailSent = false;
     await lead.save();
     
-    const text = `Hello ${lead.name},\n\nWe are pleased to inform you that your early access to Ciper AI trading tools has been approved!\n\nYour plan is active until ${lead.subscriptionEndDate ? lead.subscriptionEndDate.toLocaleDateString() : 'N/A'}.\n\nBest regards,\nCiper AI Team`;
-    const html = `<h3>Access Approved!</h3><p>Hello <strong>${lead.name}</strong>,</p><p>We are pleased to inform you that your early access to Ciper AI trading tools has been approved!</p><p>Your plan is active until <strong>${lead.subscriptionEndDate ? lead.subscriptionEndDate.toLocaleDateString() : 'N/A'}</strong>.</p><br/><p>Best regards,<br/>Ciper AI Team</p>`;
+    const text = `Hello ${lead.name},\n\nWe have activated your Ciper Eye indicator! You can now check and view it on your indicator panel.\n\nYour access is active until ${lead.subscriptionEndDate ? lead.subscriptionEndDate.toLocaleDateString() : 'N/A'}.\n\nBest regards,\nCiper AI Team`;
+    const html = `<h3>Ciper Eye Indicator Activated! 🚀</h3><p>Hello <strong>${lead.name}</strong>,</p><p>We are pleased to inform you that we have activated your Ciper Eye indicator access!</p><p>You can now check and view it on your indicator panel.</p><p>Your access is active until <strong>${lead.subscriptionEndDate ? lead.subscriptionEndDate.toLocaleDateString() : 'N/A'}</strong>.</p><br/><p>Best regards,<br/>Ciper AI Team</p>`;
     
     // Dispatched asynchronously so admin UI responds instantly
-    sendMailHelper(lead.email, 'Ciper AI Early Access Approved!', text, html, lead.name)
+    sendMailHelper(lead.email, 'Ciper Eye AI Powered Analyser Activated! 🚀', text, html, lead.name)
       .catch(err => console.error('[APPROVAL MAIL ERROR] Failed to send approval email:', err.message));
     
     res.json({ message: 'Lead approved and confirmation email sent successfully', lead });
