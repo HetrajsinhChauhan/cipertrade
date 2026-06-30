@@ -437,6 +437,15 @@ function App() {
     localStorage.getItem('ciper_prebook_banner_dismissed') === 'true'
   );
 
+  // Auto-dismiss top promo banner after 3 seconds on mount
+  useEffect(() => {
+    if (localStorage.getItem('ciper_prebook_banner_dismissed') === 'true') return;
+    const timer = setTimeout(() => {
+      setBannerDismissed(true);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
 
 
   // System dynamic configuration
@@ -1352,11 +1361,11 @@ function App() {
 
   return (
     <div ref={container} style={{ position: 'relative' }}>
-      {!bannerDismissed && currentPath !== '/adminhetraj' && (
+      {currentPath !== '/adminhetraj' && (
         <div style={{
           backgroundColor: '#00D4AA',
           color: '#ffffff',
-          padding: '10px 20px',
+          padding: bannerDismissed ? '0px 20px' : '10px 20px',
           textAlign: 'center',
           fontSize: '0.9rem',
           fontWeight: 'bold',
@@ -1366,7 +1375,11 @@ function App() {
           justifyContent: 'center',
           alignItems: 'center',
           gap: '15px',
-          flexWrap: 'wrap'
+          flexWrap: 'wrap',
+          maxHeight: bannerDismissed ? '0px' : '120px',
+          opacity: bannerDismissed ? 0 : 1,
+          overflow: 'hidden',
+          transition: 'all 0.6s cubic-bezier(0.16, 1, 0.3, 1)'
         }}>
           <span>🔥 LIMITED TIME OFFER: Pre-book now and get your 1st month FREE! (2 months for ₹1,749)</span>
           <button 
