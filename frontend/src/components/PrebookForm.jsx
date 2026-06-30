@@ -86,6 +86,36 @@ export default function PrebookForm({
     setIsLoading(true);
     setStatus({ type: '', message: '' });
 
+    // 1. Mandatory fields validation
+    if (!formData.name.trim() || !formData.email.trim() || !formData.tradingViewUsername.trim() || !formData.phone.trim()) {
+      setStatus({ type: 'error', message: 'All details are mandatory to fill' });
+      setIsLoading(false);
+      return;
+    }
+
+    // 2. Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email.trim())) {
+      setStatus({ type: 'error', message: 'Invalid email format' });
+      setIsLoading(false);
+      return;
+    }
+
+    // 3. Phone number validation (must be exactly 10 digits)
+    const phoneDigits = formData.phone.replace(/\D/g, '');
+    let finalPhone = phoneDigits;
+    if (phoneDigits.length === 12 && phoneDigits.startsWith('91')) {
+      finalPhone = phoneDigits.slice(2);
+    } else if (phoneDigits.length === 11 && phoneDigits.startsWith('0')) {
+      finalPhone = phoneDigits.slice(1);
+    }
+
+    if (finalPhone.length !== 10) {
+      setStatus({ type: 'error', message: 'Phone number must be exactly 10 digits' });
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const API_URL = import.meta.env.VITE_API_URL || (
         window.location.hostname === 'localhost' || 
@@ -96,6 +126,20 @@ export default function PrebookForm({
           ? `http://${window.location.hostname}:5000`
           : window.location.origin
       );
+
+      // Verify email and phone duplicate checks on backend
+      const checkRes = await fetch(`${API_URL}/api/prebook/check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          phone: finalPhone
+        })
+      });
+      const checkData = await checkRes.json();
+      if (!checkRes.ok) {
+        throw new Error(checkData.error || 'Verification failed');
+      }
 
       const refCodeVal = sessionStorage.getItem('ciper_referral_code') || '';
       const selectedPlanObj = plans.find(p => p.id === formData.plan) || plans[0];
@@ -110,7 +154,7 @@ export default function PrebookForm({
             name: formData.name,
             email: formData.email,
             tradingViewUsername: formData.tradingViewUsername,
-            phone: formData.phone,
+            phone: finalPhone,
             plan: formData.plan,
             refCode: refCodeVal,
             indicatorTitle: indicatorTitleVal
@@ -119,10 +163,10 @@ export default function PrebookForm({
 
         const prebookData = await prebookRes.json();
         if (!prebookRes.ok) {
-          throw new Error(prebookData.error || 'Failed to submit prebooking waitlist lead. Please try again.');
+          throw new Error(prebookData.error || 'Failed to submit pre-ordering waitlist lead. Please try again.');
         }
 
-        setStatus({ type: 'success', message: 'Pre-booking successful! Your spot on the early access waitlist is secured.' });
+        setStatus({ type: 'success', message: 'Pre-ordering successful! Your spot on the early access waitlist is secured.' });
         setFormData({ name: '', email: '', tradingViewUsername: '', phone: '', plan: defaultPlan });
         triggerConfetti();
         setIsLoading(false);
@@ -161,7 +205,7 @@ export default function PrebookForm({
         key: (import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_T4k9SB7UQRjnIJ').replace(/['"]/g, ''),
         amount: orderData.amount,
         currency: orderData.currency,
-        name: 'Ciper Eye',
+        name: 'Cipher Eye',
         description: `Subscribe to ${selectedPlanObj.name} Plan`,
         order_id: orderData.order_id,
         handler: async function (response) {
@@ -516,7 +560,7 @@ export default function PrebookForm({
             type="tel"
             id="phone"
             value={formData.phone}
-            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/[a-zA-Z]/g, '') })}
             required
             placeholder="e.g. +91 98765 43210"
           />
@@ -527,7 +571,7 @@ export default function PrebookForm({
               <span className="spinner-loader"></span>
               <span>Processing...</span>
             </span>
-          ) : (systemConfig?.indicatorMode === 'prebook' ? 'Confirm Pre-Booking' : 'Subscribe & Verify')}
+          ) : (systemConfig?.indicatorMode === 'prebook' ? 'Confirm Pre-Order' : 'Subscribe & Verify')}
         </button>
       </form>
       

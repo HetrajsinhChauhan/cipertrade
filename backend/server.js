@@ -174,8 +174,8 @@ const validate = (schema) => (req, res, next) => {
     });
     next();
   } catch (err) {
-    const errorDetails = err.errors ? err.errors.map(e => `${e.path.replace('body.', '')}: ${e.message}`).join(', ') : err.message;
-    return res.status(400).json({ error: `Input validation failed: ${errorDetails}` });
+    const errorDetails = err.errors ? err.errors[0].message : err.message;
+    return res.status(400).json({ error: errorDetails });
   }
 };
 
@@ -201,10 +201,17 @@ const verifyPinSchema = z.object({
 
 const prebookSchema = z.object({
   body: z.object({
-    name: z.string().min(2, 'Name must be at least 2 characters'),
-    email: z.string().email('Invalid email address format'),
-    tradingViewUsername: z.string().optional().or(z.literal('')),
-    phone: z.string().optional().or(z.literal('')),
+    name: z.string({ required_error: 'All details are mandatory to fill' }).min(1, 'All details are mandatory to fill'),
+    email: z.string({ required_error: 'All details are mandatory to fill' }).min(1, 'All details are mandatory to fill').email('Invalid email format'),
+    tradingViewUsername: z.string({ required_error: 'All details are mandatory to fill' }).min(1, 'All details are mandatory to fill'),
+    phone: z.string({ required_error: 'All details are mandatory to fill' })
+      .min(1, 'All details are mandatory to fill')
+      .refine((val) => !/[a-zA-Z]/.test(val), { message: 'Phone number can only contain digits' })
+      .refine((val) => {
+        const digits = val.replace(/\D/g, '');
+        const len = (digits.length === 12 && digits.startsWith('91')) ? 10 : (digits.length === 11 && digits.startsWith('0')) ? 10 : digits.length;
+        return len === 10;
+      }, { message: 'Phone number must be exactly 10 digits' }),
     plan: z.enum(['monthly', 'annual', 'unspecified', '1month', '3months', '6months', '1year']).optional().or(z.literal('')),
     refCode: z.string().optional().or(z.literal('')),
     indicatorTitle: z.string().optional().or(z.literal(''))
@@ -259,6 +266,30 @@ function adminAuth(req, res, next) {
   }
 }
 
+let cachedTransporter = null;
+
+// Helper to get or create a pooled, reusable transporter instance
+function getTransporter(smtpHost, port, secure, user, pass) {
+  const configKey = `${smtpHost}:${port}:${secure}:${user}:${pass}`;
+  if (cachedTransporter && cachedTransporter.configKey === configKey) {
+    return cachedTransporter.transporter;
+  }
+  
+  console.log(`[SMTP TRANSPORTER] Initializing new pooled SMTP transporter for ${smtpHost}...`);
+  const transporter = nodemailer.createTransport({
+    host: smtpHost,
+    port,
+    secure,
+    auth: { user, pass },
+    pool: true, // Enable connection pooling
+    maxConnections: 5,
+    maxMessages: 100
+  });
+  
+  cachedTransporter = { configKey, transporter };
+  return transporter;
+}
+
 // Helper function to send email via Mailjet REST API v3.1 or fallback SMTP
 async function sendMailHelper(to, subject, text, html, toName = '') {
   const smtpHost = process.env.SMTP_HOST || 'in-v3.mailjet.com';
@@ -282,15 +313,13 @@ async function sendMailHelper(to, subject, text, html, toName = '') {
   if (smtpHost && smtpHost !== 'in-v3.mailjet.com') {
     console.log(`[SMTP TRANSPORTER] Attempting to send email via SMTP (${smtpHost})...`);
     try {
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: parseInt(process.env.SMTP_PORT) || 587,
-        secure: process.env.SMTP_SECURE === 'true',
-        auth: {
-          user: apiKey,
-          pass: secretKey
-        }
-      });
+      const transporter = getTransporter(
+        smtpHost,
+        parseInt(process.env.SMTP_PORT) || 587,
+        process.env.SMTP_SECURE === 'true',
+        apiKey,
+        secretKey
+      );
       const info = await transporter.sendMail({
         from: `"Ciper AI" <${fromEmail}>`,
         to,
@@ -511,7 +540,10 @@ app.post('/api/admin/login', authLimiter, validate(adminLoginSchema), async (req
     
     const text = `Your Admin Security OTP is ${otp}. Valid for 5 minutes.`;
     const html = `<h3>Ciper Admin Authentication</h3><p>Your Security OTP is <strong>${otp}</strong>. Valid for 5 minutes.</p>`;
-    await sendMailHelper(normalizedEmail, 'Ciper Admin Security OTP', text, html);
+    
+    // Dispatched asynchronously in background for instant login page responsiveness
+    sendMailHelper(normalizedEmail, 'Ciper Admin Security OTP', text, html)
+      .catch(err => console.error('[OTP SEND ERROR] Failed to send admin OTP:', err.message));
     
     return res.json({ success: true, message: 'OTP sent to registered admin email' });
   }
@@ -742,46 +774,80 @@ app.post('/api/admin/profile/update', adminAuth, async (req, res) => {
 });
 
 // 4. Leads dashboard data fetch
+// 4. Leads dashboard data fetch
 app.get('/api/admin/leads', adminAuth, async (req, res) => {
   try {
     const prebookings = await Prebooking.find({}).sort({ createdAt: -1 });
+    const subscriptions = await Subscription.find({}).populate('userId').sort({ createdAt: -1 });
     
     // Calculate notifications for leads expiring in less than 24 hours or already expired
     const now = new Date();
     const oneDayFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     
-    const expiringAlerts = prebookings.filter(p => 
+    // 1. Prebooking expiring alerts (within 24 hours)
+    const expiringLeads = prebookings.filter(p => 
       p.approved && 
-      p.plan === 'monthly' && 
       p.subscriptionEndDate && 
       p.subscriptionEndDate <= oneDayFromNow && 
       p.subscriptionEndDate > now
     ).map(p => ({
       id: p._id,
+      type: 'preorder',
       name: p.name,
       email: p.email,
       plan: p.plan,
       endDate: p.subscriptionEndDate,
-      message: `Subscription for ${p.name} (${p.email}) is expiring in less than 24 hours!`
+      message: `Pre-Order subscription for ${p.name} (${p.email}) is expiring in less than 24 hours!`
     }));
-
-    const expiredAlerts = prebookings.filter(p => 
+    
+    // 2. Prebooking expired alerts
+    const expiredLeads = prebookings.filter(p => 
       p.approved && 
-      p.plan === 'monthly' && 
       p.subscriptionEndDate && 
       p.subscriptionEndDate <= now
     ).map(p => ({
       id: p._id,
+      type: 'preorder',
       name: p.name,
       email: p.email,
       plan: p.plan,
       endDate: p.subscriptionEndDate,
-      message: `Subscription for ${p.name} (${p.email}) has expired!`
+      message: `Pre-Order subscription for ${p.name} (${p.email}) has expired!`
+    }));
+    
+    // 3. Paid subscriptions expiring alerts (within 24 hours)
+    const expiringPaid = subscriptions.filter(s => 
+      s.status === 'active' && 
+      s.endDate && 
+      s.endDate <= oneDayFromNow && 
+      s.endDate > now
+    ).map(s => ({
+      id: s._id,
+      type: 'paid',
+      name: s.userId?.name || 'User',
+      email: s.userId?.email || 'N/A',
+      plan: s.planId,
+      endDate: s.endDate,
+      message: `Paid subscription for ${s.userId?.name || 'User'} (${s.userId?.email || 'N/A'}) is expiring in less than 24 hours!`
+    }));
+    
+    // 4. Paid subscriptions expired alerts
+    const expiredPaid = subscriptions.filter(s => 
+      (s.status === 'active' && s.endDate && s.endDate <= now) || 
+      (s.status === 'expired')
+    ).map(s => ({
+      id: s._id,
+      type: 'paid',
+      name: s.userId?.name || 'User',
+      email: s.userId?.email || 'N/A',
+      plan: s.planId,
+      endDate: s.endDate,
+      message: `Paid subscription for ${s.userId?.name || 'User'} (${s.userId?.email || 'N/A'}) has expired!`
     }));
 
     res.json({ 
       prebookings, 
-      notifications: [...expiringAlerts, ...expiredAlerts] 
+      notifications: [...expiringLeads, ...expiredLeads, ...expiringPaid, ...expiredPaid] 
     });
   } catch (err) {
     console.error('Error fetching admin data:', err);
@@ -800,22 +866,74 @@ app.post('/api/admin/leads/:id/confirm', adminAuth, async (req, res) => {
     lead.approved = true;
     lead.subscriptionStartDate = new Date();
     
-    if (lead.plan === 'monthly') {
-      lead.subscriptionEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
-    } else if (lead.plan === 'annual') {
-      lead.subscriptionEndDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 365 days
+    let durationDays = 30; // fallback
+    if (lead.plan === '1month' || lead.plan === 'monthly') {
+      durationDays = 60; // 1 month pre-order gets 60 days (buy 1 get 1 free offer)
+    } else if (lead.plan === '3months') {
+      durationDays = 90;
+    } else if (lead.plan === '6months') {
+      durationDays = 180;
+    } else if (lead.plan === '1year' || lead.plan === 'annual') {
+      durationDays = 365;
     }
+    
+    lead.subscriptionEndDate = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
     lead.expirationWarningSent = false;
+    lead.expirationEmailSent = false;
     await lead.save();
     
     const text = `Hello ${lead.name},\n\nWe are pleased to inform you that your early access to Ciper AI trading tools has been approved!\n\nYour plan is active until ${lead.subscriptionEndDate ? lead.subscriptionEndDate.toLocaleDateString() : 'N/A'}.\n\nBest regards,\nCiper AI Team`;
     const html = `<h3>Access Approved!</h3><p>Hello <strong>${lead.name}</strong>,</p><p>We are pleased to inform you that your early access to Ciper AI trading tools has been approved!</p><p>Your plan is active until <strong>${lead.subscriptionEndDate ? lead.subscriptionEndDate.toLocaleDateString() : 'N/A'}</strong>.</p><br/><p>Best regards,<br/>Ciper AI Team</p>`;
-    await sendMailHelper(lead.email, 'Ciper AI Early Access Approved!', text, html);
+    
+    // Dispatched asynchronously so admin UI responds instantly
+    sendMailHelper(lead.email, 'Ciper AI Early Access Approved!', text, html, lead.name)
+      .catch(err => console.error('[APPROVAL MAIL ERROR] Failed to send approval email:', err.message));
     
     res.json({ message: 'Lead approved and confirmation email sent successfully', lead });
   } catch (err) {
     console.error('Error approving lead:', err);
     res.status(500).json({ error: 'Database error approving lead' });
+  }
+});
+
+// 5.1 Extend Prebooking Lead Plan by 30 Days
+app.put('/api/admin/leads/:id/extend', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const lead = await Prebooking.findById(id);
+    if (!lead) {
+      return res.status(404).json({ error: 'Prebooking lead not found' });
+    }
+    const currentEnd = lead.subscriptionEndDate ? new Date(lead.subscriptionEndDate) : new Date();
+    const baseDate = currentEnd > new Date() ? currentEnd : new Date();
+    lead.subscriptionEndDate = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+    lead.expirationWarningSent = false;
+    lead.expirationEmailSent = false;
+    await lead.save();
+    res.json({ message: 'Pre-order plan extended by 30 days successfully', lead });
+  } catch (err) {
+    console.error('Error extending lead subscription:', err);
+    res.status(500).json({ error: 'Database error extending lead subscription' });
+  }
+});
+
+// 5.2 Revoke Prebooking Lead Access
+app.put('/api/admin/leads/:id/revoke', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const lead = await Prebooking.findById(id);
+    if (!lead) {
+      return res.status(404).json({ error: 'Prebooking lead not found' });
+    }
+    lead.approved = false;
+    lead.subscriptionEndDate = new Date();
+    lead.expirationWarningSent = false;
+    lead.expirationEmailSent = false;
+    await lead.save();
+    res.json({ message: 'Pre-order access revoked successfully', lead });
+  } catch (err) {
+    console.error('Error revoking lead access:', err);
+    res.status(500).json({ error: 'Database error revoking lead access' });
   }
 });
 
@@ -825,37 +943,43 @@ app.post('/api/admin/leads/notify-launch', adminAuth, async (req, res) => {
     const leads = await Prebooking.find({});
     
     if (leads.length === 0) {
-      return res.status(400).json({ error: 'No pre-booking requests found to notify.' });
+      return res.status(400).json({ error: 'No pre-order requests found to notify.' });
     }
 
-    let successCount = 0;
-    let failCount = 0;
+    // Process notification broadcast in the background to prevent server response timeout
+    setTimeout(async () => {
+      let successCount = 0;
+      let failCount = 0;
 
-    for (const lead of leads) {
-      try {
-        const subject = `Ciper Eye Indicator is Now Live! 🚀`;
-        const text = `Hello ${lead.name},\n\nWe are thrilled to announce that the Ciper Eye Signal Engine is now officially Live! 🎉\n\nYou can now visit our website to checkout and activate your indicator access pass immediately.\n\nBest regards,\nCiper AI Team`;
-        const html = `
-          <h3>Ciper Eye is Officially Live! 🚀</h3>
-          <p>Hello <strong>${lead.name}</strong>,</p>
-          <p>We are thrilled to announce that the <strong>Ciper Eye Signal Engine</strong> is now officially Live! 🎉</p>
-          <p>Since you pre-booked, your early spot is secured. You can now visit our website to buy your monthly or annual access pass and start trading with institutional market edge indicators immediately.</p>
-          <p><a href="https://cipereye.com" style="background-color: #00D4AA; color: #000; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Go to Ciper Website &rarr;</a></p>
-          <br/>
-          <p>Best regards,<br/>Ciper AI Team</p>
-        `;
-        await sendMailHelper(lead.email, subject, text, html);
-        successCount++;
-      } catch (err) {
-        console.error(`Failed to send launch email to ${lead.email}:`, err);
-        failCount++;
+      for (const lead of leads) {
+        try {
+          const subject = `Cipher Eye Indicator is Now Live! 🚀`;
+          const text = `Hello ${lead.name},\n\nWe are thrilled to announce that the Cipher Eye AI Powered Indicator is now officially Live! 🎉\n\nYou can now visit our website to checkout and activate your indicator access pass immediately.\n\nBest regards,\nCipher Eye Team`;
+          const html = `
+            <h3>Cipher Eye is Officially Live! 🚀</h3>
+            <p>Hello <strong>${lead.name}</strong>,</p>
+            <p>We are thrilled to announce that the <strong>Cipher Eye AI Powered Indicator</strong> is now officially Live! 🎉</p>
+            <p>Since you pre-ordered, your early spot is secured. You can now visit our website to buy your monthly or annual access pass and start trading with institutional market edge indicators immediately.</p>
+            <p><a href="https://cipertrade.com" style="background-color: #00D4AA; color: #000; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Go to Website &rarr;</a></p>
+            <br/>
+            <p>Best regards,<br/>Cipher Eye Team</p>
+          `;
+          await sendMailHelper(lead.email, subject, text, html);
+          successCount++;
+        } catch (err) {
+          console.error(`Failed to send launch email to ${lead.email}:`, err);
+          failCount++;
+        }
+        // Rate-limit delay (150ms) to respect SMTP server delivery speeds
+        await new Promise(resolve => setTimeout(resolve, 150));
       }
-    }
+      console.log(`[BROADCAST COMPLETE] Sent: ${successCount}, Failed: ${failCount}`);
+    }, 0);
 
-    res.json({ message: `Notification broadcast complete. Sent: ${successCount}, Failed: ${failCount}` });
+    res.json({ message: `Notification broadcast started in the background for ${leads.length} members.` });
   } catch (err) {
-    console.error('Error broadcasting launch emails:', err);
-    res.status(500).json({ error: 'Database error occurred during email broadcast' });
+    console.error('Error in notify-launch route:', err);
+    res.status(500).json({ error: 'Failed to initiate notify-launch action' });
   }
 });
 
@@ -1213,7 +1337,7 @@ app.post('/api/verify-payment', async (req, res) => {
 
     // 6. Send confirmation email stating:
     // "Congratulations! Your payment has been confirmed. We will give you access in 24 hours."
-    const subject = `Payment Confirmed! Your Ciper AI Pre-Booking for ${selectedTitle} is Active! 🎉`;
+    const subject = `Payment Confirmed! Your Ciper AI Pre-Order for ${selectedTitle} is Active! 🎉`;
     const text = `Hello ${name},\n\nThank you! Your payment for ${selectedTitle} is successful and your booking is confirmed.\n\nYour payment ID is ${razorpay_payment_id}.\nWe are now setting up your access. You will be given full access to the indicator on TradingView within the next 24 hours.\n\nOur team will also reach out to you on WhatsApp.\n\nBest regards,\nCiper AI Team`;
     const html = `
       <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; background-color: #0b0c10; color: #c5c6c7; border: 1px solid #1f2833; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
@@ -1245,15 +1369,47 @@ app.post('/api/verify-payment', async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Payment verified and pre-booking registered successfully!',
+      message: 'Payment verified and pre-order registered successfully!',
       id: newPrebook._id
     });
   } catch (err) {
     if (err.code === 11000) {
-      return res.status(400).json({ error: 'Email already registered for pre-booking' });
+      return res.status(400).json({ error: 'Email already registered for pre-order' });
     }
     console.error('Error verifying payment / saving pre-booking:', err);
     res.status(500).json({ error: 'Database error occurred during payment registration' });
+  }
+});
+
+// 9.0 Check if email or phone is already registered (Pre-check endpoint)
+app.post('/api/prebook/check', async (req, res) => {
+  const { email, phone } = req.body;
+  if (!email || !phone) {
+    return res.status(400).json({ error: 'All details are mandatory to fill' });
+  }
+  try {
+    const existingEmail = await Prebooking.findOne({ email: email.toLowerCase().trim() });
+    if (existingEmail) {
+      return res.status(400).json({ error: 'Email already used' });
+    }
+    
+    // Normalize phone digits
+    const digits = phone.replace(/\D/g, '');
+    let finalPhone = digits;
+    if (digits.length === 12 && digits.startsWith('91')) {
+      finalPhone = digits.slice(2);
+    } else if (digits.length === 11 && digits.startsWith('0')) {
+      finalPhone = digits.slice(1);
+    }
+    
+    const existingPhone = await Prebooking.findOne({ phone: finalPhone });
+    if (existingPhone) {
+      return res.status(400).json({ error: 'Phone number already used' });
+    }
+    res.json({ available: true });
+  } catch (err) {
+    console.error('Error checking duplicates:', err);
+    res.status(500).json({ error: 'Server error verifying details' });
   }
 });
 
@@ -1261,17 +1417,38 @@ app.post('/api/verify-payment', async (req, res) => {
 app.post('/api/prebook', validate(prebookSchema), async (req, res) => {
   const { name, email, tradingViewUsername, phone, plan, refCode, indicatorTitle } = req.body;
   
-  if (!name || !email) {
-    return res.status(400).json({ error: 'Name and Email are required' });
+  if (!name || !email || !tradingViewUsername || !phone) {
+    return res.status(400).json({ error: 'All details are mandatory to fill' });
   }
 
   try {
+    // Check if email already used
+    const existingEmail = await Prebooking.findOne({ email: email.toLowerCase().trim() });
+    if (existingEmail) {
+      return res.status(400).json({ error: 'Email already used' });
+    }
+
+    // Normalize phone digits
+    const digits = phone.replace(/\D/g, '');
+    let finalPhone = digits;
+    if (digits.length === 12 && digits.startsWith('91')) {
+      finalPhone = digits.slice(2);
+    } else if (digits.length === 11 && digits.startsWith('0')) {
+      finalPhone = digits.slice(1);
+    }
+
+    // Check if phone already exists
+    const existingPhone = await Prebooking.findOne({ phone: finalPhone });
+    if (existingPhone) {
+      return res.status(400).json({ error: 'Phone number already used' });
+    }
+
     const selectedTitle = indicatorTitle || 'General';
     const newPrebook = new Prebooking({
       name,
       email,
       tradingView: tradingViewUsername || '',
-      phone: phone || '',
+      phone: finalPhone,
       plan: plan || 'unspecified',
       refCode: refCode || '',
       indicatorTitle: selectedTitle
@@ -1295,14 +1472,14 @@ app.post('/api/prebook', validate(prebookSchema), async (req, res) => {
       await ind.save();
     }
 
-    // Send pre-booking confirmation email via Mailjet REST API
-    const subject = `Congratulations! Your Ciper AI Pre-Booking for ${selectedTitle} is Confirmed! 🎉`;
-    const text = `Hello ${name},\n\nCongratulations! Your pre-booking for ${selectedTitle} is confirmed! Our team will inform you as soon as this indicator is ready. We will also reach out to you on WhatsApp.\n\nThank you,\nCiper AI Team`;
+    // Send pre-order confirmation email via Mailjet REST API
+    const subject = `Congratulations! Your Ciper AI Pre-Order for ${selectedTitle} is Confirmed! 🎉`;
+    const text = `Hello ${name},\n\nCongratulations! Your pre-order for ${selectedTitle} is confirmed! Our team will inform you as soon as this indicator is ready. We will also reach out to you on WhatsApp.\\n\\nThank you,\\nCiper AI Team`;
     const html = `
       <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; background-color: #0b0c10; color: #c5c6c7; border: 1px solid #1f2833; border-radius: 12px;">
         <h2 style="color: #66fcf1; border-bottom: 1px solid #1f2833; padding-bottom: 12px; margin-top: 0;">Congratulations! 🎉</h2>
         <p>Hello <strong>${name}</strong>,</p>
-        <p>Your pre-booking for <strong>${selectedTitle}</strong> is confirmed!</p>
+        <p>Your pre-order for <strong>${selectedTitle}</strong> is confirmed!</p>
         <p>Our team will inform you as soon as this indicator is ready. We will also reach out to you on WhatsApp to share updates and next steps.</p>
         <br/>
         <p style="color: #66fcf1; font-weight: bold; margin-bottom: 5px;">Thank you,</p>
@@ -1313,10 +1490,10 @@ app.post('/api/prebook', validate(prebookSchema), async (req, res) => {
     // Dispatched asynchronously so pre-booking response is instant
     sendMailHelper(email, subject, text, html, name);
 
-    res.status(201).json({ message: 'Pre-booking successful!', id: newPrebook._id });
+    res.status(201).json({ message: 'Pre-order successful!', id: newPrebook._id });
   } catch (err) {
     if (err.code === 11000) {
-      return res.status(400).json({ error: 'Email already registered for pre-booking' });
+      return res.status(400).json({ error: 'Email already registered for pre-order' });
     }
     console.error('Error saving pre-booking:', err);
     res.status(500).json({ error: 'Database error occurred' });
@@ -1445,8 +1622,8 @@ app.post('/api/payment/verify', async (req, res) => {
     let durationDays = 30;
     let planName = '1 Month Access';
     if (planId === '1month') {
-      durationDays = 60; // 1 Month pre-book plan gets 60 days
-      planName = '1 Month Pre-Book';
+      durationDays = 60; // 1 Month pre-order plan gets 60 days
+      planName = '1 Month Pre-Order';
     } else if (planId === '3months') {
       durationDays = 90;
       planName = '3 Months Access';
@@ -1531,7 +1708,10 @@ app.post('/api/user/request-otp', async (req, res) => {
 
     const text = `Your Ciper Eye Login OTP is ${otp}. Valid for 5 minutes.`;
     const html = `<h3>Ciper Eye Login Verification</h3><p>Your Security OTP is <strong>${otp}</strong>. Valid for 5 minutes.</p>`;
-    await sendMailHelper(normalizedEmail, 'Ciper Eye Login OTP', text, html);
+    
+    // Dispatched asynchronously in background for immediate responsiveness
+    sendMailHelper(normalizedEmail, 'Ciper Eye Login OTP', text, html)
+      .catch(err => console.error('[USER OTP SEND ERROR] Failed to send user login OTP:', err.message));
 
     res.json({ success: true, message: 'OTP sent to registered user email' });
   } catch (err) {
@@ -1607,6 +1787,8 @@ app.put('/api/admin/subscriptions/:id/extend', adminAuth, async (req, res) => {
     const baseDate = currentEnd > new Date() ? currentEnd : new Date();
     sub.endDate = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000);
     sub.status = 'active';
+    sub.expirationWarningSent = false;
+    sub.expirationEmailSent = false;
     await sub.save();
     res.json({ message: 'Subscription extended by 30 days', subscription: sub });
   } catch (err) {
@@ -1672,25 +1854,91 @@ async function checkExpiringSubscriptions() {
     const now = new Date();
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     
-    // Find all approved monthly leads expiring in less than 24 hours, warning not yet sent
+    // --- 1. PREBOOKINGS (WAITLIST LEADS) ---
+    // A. Expiring in less than 24 hours (Warning)
     const expiringLeads = await Prebooking.find({
       approved: true,
-      plan: 'monthly',
       subscriptionEndDate: { $lte: tomorrow, $gt: now },
       expirationWarningSent: { $ne: true }
     });
     
     for (const lead of expiringLeads) {
       const hoursLeft = Math.ceil((lead.subscriptionEndDate.getTime() - now.getTime()) / (1000 * 60 * 60));
-      const text = `Hello ${lead.name},\n\nYour Ciper AI monthly subscription is ending soon. It will expire in ${hoursLeft} hours (tomorrow) on ${lead.subscriptionEndDate.toLocaleString()}.\n\nPlease renew your plan to continue using the indicator tools.\n\nBest regards,\nCiper AI Team`;
-      const html = `<h3>Subscription Expiring Soon!</h3><p>Hello <strong>${lead.name}</strong>,</p><p>Your Ciper AI monthly subscription is ending soon. It will expire in <strong>${hoursLeft}</strong> hours (tomorrow) on <strong>${lead.subscriptionEndDate.toLocaleString()}</strong>.</p><p>Please renew your plan to continue accessing the indicator tools.</p><br/><p>Best regards,<br/>Ciper AI Team</p>`;
+      const planName = lead.plan || 'monthly';
+      const text = `Hello ${lead.name},\n\nYour Ciper AI ${planName} subscription is ending soon. It will expire in ${hoursLeft} hours on ${lead.subscriptionEndDate.toLocaleString()}.\n\nPlease renew your plan to continue using the indicator tools.\n\nBest regards,\nCiper AI Team`;
+      const html = `<h3>Subscription Expiring Soon!</h3><p>Hello <strong>${lead.name}</strong>,</p><p>Your Ciper AI <strong>${planName}</strong> subscription is ending soon. It will expire in <strong>${hoursLeft}</strong> hours on <strong>${lead.subscriptionEndDate.toLocaleString()}</strong>.</p><p>Please renew your plan to continue accessing the indicator tools.</p><br/><p>Best regards,<br/>Ciper AI Team</p>`;
       
-      const success = await sendMailHelper(lead.email, 'Your Ciper AI monthly subscription is ending tomorrow', text, html);
+      const success = await sendMailHelper(lead.email, `Your Ciper AI ${planName} subscription is ending tomorrow`, text, html, lead.name);
       if (success) {
         lead.expirationWarningSent = true;
         await lead.save();
         console.log(`[SUBSCRIPTION WARNING] Sent expiration warning email to ${lead.email}`);
       }
+    }
+    
+    // B. Expired (End date past)
+    const expiredLeads = await Prebooking.find({
+      approved: true,
+      subscriptionEndDate: { $lte: now },
+      expirationEmailSent: { $ne: true }
+    });
+    
+    for (const lead of expiredLeads) {
+      const planName = lead.plan || 'monthly';
+      const text = `Hello ${lead.name},\n\nYour Ciper AI ${planName} subscription has expired.\n\nPlease renew your plan to reactivate your access to the indicator tools.\n\nBest regards,\nCiper AI Team`;
+      const html = `<h3>Subscription Expired</h3><p>Hello <strong>${lead.name}</strong>,</p><p>Your Ciper AI <strong>${planName}</strong> subscription has expired.</p><p>Please renew your plan to reactivate your access to the indicator tools.</p><br/><p>Best regards,<br/>Ciper AI Team</p>`;
+      
+      const success = await sendMailHelper(lead.email, `Your Ciper AI ${planName} subscription has expired`, text, html, lead.name);
+      if (success) {
+        lead.expirationEmailSent = true;
+        await lead.save();
+        console.log(`[SUBSCRIPTION EXPIRED] Sent expiration email to ${lead.email}`);
+      }
+    }
+
+    // --- 2. PAID SUBSCRIPTIONS ---
+    // A. Expiring in less than 24 hours (Warning)
+    const expiringSubs = await Subscription.find({
+      status: 'active',
+      endDate: { $lte: tomorrow, $gt: now },
+      expirationWarningSent: { $ne: true }
+    }).populate('userId');
+    
+    for (const sub of expiringSubs) {
+      if (!sub.userId) continue;
+      const hoursLeft = Math.ceil((sub.endDate.getTime() - now.getTime()) / (1000 * 60 * 60));
+      const planName = sub.planName || 'Access Plan';
+      const text = `Hello ${sub.userId.name || 'Trader'},\n\nYour Ciper Eye ${planName} subscription is ending soon. It will expire in ${hoursLeft} hours on ${sub.endDate.toLocaleString()}.\n\nPlease renew your plan to continue using the indicator tools.\n\nBest regards,\nCiper Eye Team`;
+      const html = `<h3>Subscription Expiring Soon!</h3><p>Hello <strong>${sub.userId.name || 'Trader'}</strong>,</p><p>Your Ciper Eye <strong>${planName}</strong> subscription is ending soon. It will expire in <strong>${hoursLeft}</strong> hours on <strong>${sub.endDate.toLocaleString()}</strong>.</p><p>Please renew your plan to continue accessing the indicator tools.</p><br/><p>Best regards,<br/>Ciper Eye Team</p>`;
+      
+      const success = await sendMailHelper(sub.userId.email, `Your Ciper Eye ${planName} subscription is ending tomorrow`, text, html, sub.userId.name);
+      if (success) {
+        sub.expirationWarningSent = true;
+        await sub.save();
+        console.log(`[SUBSCRIPTION WARNING] Sent paid subscription warning email to ${sub.userId.email}`);
+      }
+    }
+    
+    // B. Expired (End date past)
+    const expiredSubs = await Subscription.find({
+      status: 'active',
+      endDate: { $lte: now }
+    }).populate('userId');
+    
+    for (const sub of expiredSubs) {
+      sub.status = 'expired';
+      
+      if (sub.userId && sub.expirationEmailSent !== true) {
+        const planName = sub.planName || 'Access Plan';
+        const text = `Hello ${sub.userId.name || 'Trader'},\n\nYour Ciper Eye ${planName} subscription has expired.\n\nPlease renew your plan to reactivate your access to the indicator tools.\n\nBest regards,\nCiper Eye Team`;
+        const html = `<h3>Subscription Expired</h3><p>Hello <strong>${sub.userId.name || 'Trader'}</strong>,</p><p>Your Ciper Eye <strong>${planName}</strong> subscription has expired.</p><p>Please renew your plan to reactivate your access to the indicator tools.</p><br/><p>Best regards,<br/>Ciper Eye Team</p>`;
+        
+        await sendMailHelper(sub.userId.email, `Your Ciper Eye ${planName} subscription has expired`, text, html, sub.userId.name);
+        sub.expirationEmailSent = true;
+      }
+      
+      await sub.save();
+      console.log(`[SUBSCRIPTION EXPIRED] Updated paid subscription status to expired for sub ${sub._id}`);
     }
   } catch (err) {
     console.error('Error in background subscription check:', err);

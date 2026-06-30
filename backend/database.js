@@ -60,6 +60,10 @@ const prebookingSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  expirationEmailSent: {
+    type: Boolean,
+    default: false
+  },
   indicatorTitle: {
     type: String,
     default: 'General'
@@ -257,7 +261,7 @@ const webContentSchema = new mongoose.Schema({
   
   heroSlide2Badge: { type: String, default: 'Featured Indicator' },
   heroSlide2Title1: { type: String, default: 'Ciper Eye' },
-  heroSlide2Title2: { type: String, default: 'Signal Engine' },
+  heroSlide2Title2: { type: String, default: 'AI Powered Indicator' },
   heroSlide2Desc: { type: String, default: 'Generates high-probability buy/sell signals. Integrate it with your existing strategy to get precise entry, take profit (TP), and stop loss (SL) levels.' },
 
   accuracyValue: { type: Number, default: 94 },
@@ -377,6 +381,14 @@ const subscriptionSchema = new mongoose.Schema({
     enum: ['active', 'expired', 'revoked'],
     default: 'active'
   },
+  expirationWarningSent: {
+    type: Boolean,
+    default: false
+  },
+  expirationEmailSent: {
+    type: Boolean,
+    default: false
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -441,7 +453,7 @@ async function ensureDefaultIndicators() {
     if (count === 0) {
       const defaultIndicators = [
         {
-          title: "Ciper Eye",
+          title: "Cipher Eye",
           desc: "Generates high-probability buy/sell signals. Integrate it with your existing strategy to get precise entry, take profit (TP), and stop loss (SL) levels.",
           status: "Beta Testing",
           icon: "trend",
@@ -524,17 +536,17 @@ async function ensureDefaultIndicators() {
           annualDiscountPrice: 499
         }
       });
-      // Rename any indicator with TL/Trend Line title to Ciper Eye and update description
+      // Rename any indicator with TL/Trend Line title to Cipher Eye and update description
       await Indicator.updateMany(
         { title: { $regex: /Ciper TL|Trend Line/i } },
         {
           $set: {
-            title: "Ciper Eye",
+            title: "Cipher Eye",
             desc: "Generates high-probability buy/sell signals. Integrate it with your existing strategy to get precise entry, take profit (TP), and stop loss (SL) levels."
           }
         }
       );
-      console.log('Existing indicators updated to new prices & Ciper Eye branding.');
+      console.log('Existing indicators updated to new prices & Cipher Eye branding.');
     }
   } catch (err) {
     console.error('Error seeding default indicators:', err);
@@ -554,7 +566,7 @@ async function ensureDefaultWebContent() {
           heroDesc: "Ciper uses advanced neural networks to map out the market in real-time. Detects support/resistance zones, high-probability convergence areas, and breakouts automatically.",
           heroSlide2Badge: "Featured Indicator",
           heroSlide2Title1: "Ciper Eye",
-          heroSlide2Title2: "Signal Engine",
+          heroSlide2Title2: "AI Powered Analyser",
           heroSlide2Desc: "Generates high-probability buy/sell signals. Integrate it with your existing strategy to get precise entry, take profit (TP), and stop loss (SL) levels.",
           accuracyValue: 94,
           stat1Num: "730K",
@@ -567,15 +579,15 @@ async function ensureDefaultWebContent() {
           stat3Label: "Global Backtests",
           stat3Desc: "Simulated market cycles across major tokens and assets.",
           faqs: [
-            { q: "How does Ciper detect pattern zones?", a: "Ciper scans historical and real-time candlestick data across multiple timeframes, calculating mathematical standard deviations and liquidity imbalances to map pattern zones." },
-            { q: "Is Ciper suitable for beginners?", a: "Yes. Ciper takes complex institutional concepts (like support/resistance nodes and multi-indicator convergence) and translates them into simple, clean visual cues on your chart." },
-            { q: "Which assets and platforms does Ciper support?", a: "Ciper works across major asset classes including Cryptocurrencies, Forex, and Stocks. It is designed to integrate seamlessly with major charting platforms like TradingView." },
+            { q: "How does Ciper Eye detect pattern zones?", a: "Ciper Eye scans historical and real-time candlestick data across multiple timeframes, calculating mathematical standard deviations and liquidity imbalances to map pattern zones." },
+            { q: "Is Ciper Eye suitable for beginners?", a: "Yes. Ciper Eye takes complex institutional concepts (like support/resistance nodes and multi-indicator convergence) and translates them into simple, clean visual cues on your chart." },
+            { q: "Which assets and platforms does Ciper Eye support?", a: "Ciper Eye works across major asset classes including Cryptocurrencies, Forex, and Stocks. It is designed to integrate seamlessly with major charting platforms like TradingView." },
             { q: "What does the early access waitlist include?", a: "Joining the waitlist secures your early access slot, exclusive discounted pricing upon launch, and access to private beta testing groups." }
           ],
           reviews: [
             { quote: "Works like absolute magic. The neural pattern scanner marks structural zones in seconds. Completely optimized my entries and exit speeds.", user: "@Mishatrading", avatar: "MT", role: "Pro Crypto Trader" },
             { quote: "The auto support & resistance overlays are incredibly precise. It maps liquidity pools exactly where institutional orders sit. Highly recommend.", user: "@NazarBuch", avatar: "NB", role: "Forex Specialist" },
-            { quote: "Ciper's convergence metrics have saved me hours of analysis. Seeing multiple mathematical indicators align in real-time is a complete cheat code.", user: "@CryptoApex", avatar: "CA", role: "Equity Analyst" }
+            { quote: "Ciper Eye's convergence metrics have saved me hours of analysis. Seeing multiple mathematical indicators align in real-time is a complete cheat code.", user: "@CryptoApex", avatar: "CA", role: "Equity Analyst" }
           ]
         }
       },
@@ -587,7 +599,7 @@ async function ensureDefaultWebContent() {
       {
         $set: {
           heroSlide2Title1: "Ciper Eye",
-          heroSlide2Title2: "Signal Engine",
+          heroSlide2Title2: "AI Powered Analyser",
           heroSlide2Desc: "Generates high-probability buy/sell signals. Integrate it with your existing strategy to get precise entry, take profit (TP), and stop loss (SL) levels."
         }
       }

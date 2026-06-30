@@ -11,7 +11,7 @@ async function viewLeads() {
     const leads = await Prebooking.find({}).sort({ createdAt: -1 });
 
     if (leads.length === 0) {
-      console.log('No pre-bookings found yet. Please open the website, click "Get Started" / "Secure Early Access", and submit the form to add leads.');
+      console.log('No pre-orders found yet. Please open the website, click "Get Started" / "Secure Early Access", and submit the form to add leads.');
     } else {
       const formatted = leads.map((lead, index) => ({
         index,

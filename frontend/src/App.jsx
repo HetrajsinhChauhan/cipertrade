@@ -147,166 +147,272 @@ function IndicatorCard({ indicator, referralDiscount, onPrebook, getMonthlyPrice
   );
 }
 
-function TradeSignalSimulator() {
-  const [activeSignal, setActiveSignal] = useState({
-    symbol: 'BTC/USDT',
-    type: 'BUY',
-    timeframe: 'H4',
-    entry: '₹5,845,200',
-    tp1: '₹6,050,000',
-    tp2: '₹6,220,000',
-    sl: '₹5,680,000',
-    progress: 45,
-    status: 'Analyzing Breakout Vectors...',
-    timestamp: 'Active'
-  });
-
-  const [terminalLogs, setTerminalLogs] = useState([
-    'Initializing Ciper Eye Neural Core v4.2.0...',
-    'Connecting to live market data streams...',
-    'Scan complete: Multi-timeframe convergence confirmed.'
-  ]);
+function ScrollAnimatedChart() {
+  const containerRef = useRef(null);
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    const signals = [
-      {
-        symbol: 'BTC/USDT',
-        type: 'BUY',
-        timeframe: 'H4',
-        entry: '₹5,845,200',
-        tp1: '₹6,050,000',
-        tp2: '₹6,220,000',
-        sl: '₹5,680,000',
-        progress: 68,
-        status: 'Bullish breakout confirmed at H4 trend line resistance.',
-        timestamp: 'Active'
-      },
-      {
-        symbol: 'ETH/USDT',
-        type: 'BUY',
-        timeframe: 'H1',
-        entry: '₹312,450',
-        tp1: '₹324,000',
-        tp2: '₹335,000',
-        sl: '₹304,000',
-        progress: 85,
-        status: 'TP1 Hit! Targeting TP2. Moving Stop Loss to Entry.',
-        timestamp: 'Active'
-      },
-      {
-        symbol: 'SOL/USDT',
-        type: 'SELL',
-        timeframe: 'D1',
-        entry: '₹12,480',
-        tp1: '₹11,600',
-        tp2: '₹10,800',
-        sl: '₹13,100',
-        progress: 32,
-        status: 'Descending channel breach. Bearish delta imbalance detected.',
-        timestamp: 'Active'
-      }
-    ];
-
-    const logTemplates = [
-      'Scanning H1, H4, D1 structural pivots...',
-      'Detected institutional liquidity sweep at support node.',
-      'Order block imbalance delta expanding (+18.4%).',
-      'Calculating Standard Deviation Band exhaustion limits...',
-      'Plotting mathematical vector convergence zones...',
-      'Calculated signal accuracy: 94.2% based on backtest weights.'
-    ];
-
-    let signalIndex = 0;
-    
-    const interval = setInterval(() => {
-      signalIndex = (signalIndex + 1) % signals.length;
-      const nextSignal = signals[signalIndex];
-      setActiveSignal(nextSignal);
+    const handleScroll = () => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
       
-      setTerminalLogs(prev => {
-        const randomLog = logTemplates[Math.floor(Math.random() * logTemplates.length)];
-        const newLogs = [...prev.slice(1), `[${new Date().toLocaleTimeString()}] ${randomLog}`];
-        return newLogs;
-      });
-    }, 4500);
+      // Calculate scroll progress from when element top is at 95% of viewport to when it reaches 25%
+      const start = viewportHeight * 0.95;
+      const end = viewportHeight * 0.25;
+      const current = rect.top;
+      
+      let p = (start - current) / (start - end);
+      p = Math.min(1, Math.max(0, p));
+      setProgress(p);
+    };
 
-    return () => clearInterval(interval);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    // Run once on load
+    setTimeout(handleScroll, 100);
+
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const candles = [
+    { x: 30, open: 120, close: 140, high: 100, low: 150, vol: 60 },
+    { x: 60, open: 140, close: 135, high: 120, low: 155, vol: 45 },
+    { x: 90, open: 135, close: 155, high: 125, low: 165, vol: 70 },
+    { x: 120, open: 155, close: 175, high: 150, low: 185, vol: 55 },
+    { x: 150, open: 175, close: 165, high: 155, low: 180, vol: 40 },
+    { x: 180, open: 165, close: 195, high: 155, low: 210, vol: 65 },
+    { x: 210, open: 195, close: 190, high: 180, low: 200, vol: 35 },
+    { x: 240, open: 190, close: 215, high: 185, low: 225, vol: 50 },
+    { x: 270, open: 215, close: 205, high: 195, low: 220, vol: 48 },
+    { x: 300, open: 205, close: 230, high: 195, low: 240, vol: 62 },
+    { x: 330, open: 230, close: 225, high: 215, low: 235, vol: 30 },
+    { x: 360, open: 225, close: 245, high: 215, low: 250, vol: 58 },
+    { x: 390, open: 245, close: 240, high: 230, low: 255, vol: 42 },
+    { x: 420, open: 240, close: 250, high: 235, low: 260, vol: 50 },
+    { x: 450, open: 250, close: 242, high: 238, low: 255, vol: 38 },
+    { x: 480, open: 242, close: 248, high: 238, low: 252, vol: 32 },
+    { x: 510, open: 248, close: 180, high: 175, low: 255, vol: 120 }, // Huge Breakout Candle! - BUY Signal here!
+    { x: 540, open: 180, close: 195, high: 170, low: 205, vol: 95 },
+    { x: 570, open: 195, close: 170, high: 165, low: 200, vol: 80 },
+    { x: 600, open: 170, close: 145, high: 135, low: 180, vol: 85 },
+    { x: 630, open: 145, close: 120, high: 110, low: 155, vol: 110 },
+    { x: 660, open: 120, close: 130, high: 115, low: 140, vol: 60 },
+    { x: 690, open: 130, close: 100, high: 95, low: 140, vol: 90 },
+    { x: 720, open: 100, close: 75, high: 70, low: 110, vol: 105 },
+    { x: 750, open: 75, close: 55, high: 50, low: 85, vol: 115 },
+    { x: 780, open: 55, close: 40, high: 35, low: 65, vol: 130 }
+  ];
+
+  const showBuySignal = progress >= 0.64;
+
   return (
-    <div className="live-signal-simulator">
-      <div className="simulator-header">
-        <div className="simulator-pulse-title">
-          <span className="live-dot animate-pulse"></span>
-          <span>LIVE SIGNAL MONITOR</span>
+    <div ref={containerRef} className="scroll-chart-container" style={{
+      width: '100%',
+      maxWidth: '850px',
+      margin: '2rem auto 1.5rem',
+      position: 'relative',
+      overflow: 'hidden'
+    }}>
+      {/* Title / Status */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', fontWeight: '800', color: '#bd00ff', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+          <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#00F5D4', boxShadow: '0 0 8px #00F5D4' }} className="animate-pulse"></span>
+          Neural Candlestick Scanner
         </div>
-        <div className="simulator-engine-label">CIPER EYE v4.2</div>
-      </div>
-
-      <div className="simulator-grid">
-        <div className="simulator-detail-pane">
-          <div className="detail-row">
-            <span className="detail-label">Asset / TF</span>
-            <span className="detail-value highlight-symbol">{activeSignal.symbol} <span className="tf-badge">{activeSignal.timeframe}</span></span>
-          </div>
-
-          <div className="detail-row">
-            <span className="detail-label">Direction</span>
-            <span className={`detail-value signal-direction ${activeSignal.type.toLowerCase()}`}>
-              {activeSignal.type === 'BUY' ? '▲ BUY / LONG' : '▼ SELL / SHORT'}
-            </span>
-          </div>
-
-          <div className="detail-row">
-            <span className="detail-label">Entry Zone</span>
-            <span className="detail-value entry-price">{activeSignal.entry}</span>
-          </div>
-        </div>
-
-        <div className="simulator-target-pane">
-          <div className="target-item tp">
-            <div className="target-item-header">
-              <span>Take Profit 1</span>
-              <span className="tp-val">{activeSignal.tp1}</span>
-            </div>
-            <div className="target-progress-bar">
-              <div className="target-progress-fill tp" style={{ width: `${activeSignal.progress}%` }}></div>
-            </div>
-          </div>
-
-          <div className="target-item tp2">
-            <div className="target-item-header">
-              <span>Take Profit 2</span>
-              <span className="tp-val">{activeSignal.tp2}</span>
-            </div>
-            <div className="target-progress-bar">
-              <div className="target-progress-fill tp2" style={{ width: `${Math.max(0, activeSignal.progress - 30)}%` }}></div>
-            </div>
-          </div>
-
-          <div className="target-item sl">
-            <div className="target-item-header">
-              <span>Stop Loss</span>
-              <span className="sl-val">{activeSignal.sl}</span>
-            </div>
-            <div className="target-progress-bar">
-              <div className="target-progress-fill sl" style={{ width: '10%' }}></div>
-            </div>
-          </div>
+        <div style={{ fontSize: '0.72rem', background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '10px', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.08)' }}>
+          Scroll to scan chart &rarr; {Math.round(progress * 100)}%
         </div>
       </div>
 
-      <div className="simulator-status-bar">
-        <span className="status-label">Status:</span>
-        <span className="status-message">{activeSignal.status}</span>
-      </div>
+      {/* SVG Canvas */}
+      <svg viewBox="0 0 850 400" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: 'auto', display: 'block' }}>
+        <defs>
+          {/* Neon Glow Filter */}
+          <filter id="neon-glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="6" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          
+          {/* Area Fill Gradient under EMA */}
+          <linearGradient id="chart-area-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#00F5D4" stopOpacity="0.08" />
+            <stop offset="100%" stopColor="#bd00ff" stopOpacity="0.0" />
+          </linearGradient>
+        </defs>
 
-      <div className="simulator-terminal">
-        {terminalLogs.map((log, index) => (
-          <div key={index} className="terminal-line">
-            <span className="terminal-prompt">&gt;</span> {log}
-          </div>
-        ))}
+        {/* 1. Background Grid */}
+        <g stroke="rgba(255, 255, 255, 0.03)" strokeWidth="1">
+          {/* Horizontal lines */}
+          <line x1="30" y1="100" x2="790" y2="100" />
+          <line x1="30" y1="150" x2="790" y2="150" />
+          <line x1="30" y1="200" x2="790" y2="200" />
+          <line x1="30" y1="250" x2="790" y2="250" />
+          <line x1="30" y1="300" x2="790" y2="300" />
+          <line x1="30" y1="350" x2="790" y2="350" />
+          
+          {/* Vertical lines */}
+          <line x1="120" y1="50" x2="120" y2="350" />
+          <line x1="240" y1="50" x2="240" y2="350" />
+          <line x1="360" y1="50" x2="360" y2="350" />
+          <line x1="480" y1="50" x2="480" y2="350" />
+          <line x1="600" y1="50" x2="600" y2="350" />
+          <line x1="720" y1="50" x2="720" y2="350" />
+        </g>
+
+        {/* 2. Institutional Order Blocks / Key Zones */}
+        {/* Supply Exhaustion Zone */}
+        <rect x="30" y="60" width="760" height="30" rx="4" fill="rgba(239, 68, 68, 0.02)" stroke="rgba(239, 68, 68, 0.1)" strokeWidth="1" strokeDasharray="3 3" />
+        <text x="40" y="78" fill="rgba(239, 68, 68, 0.4)" fontSize="9" fontWeight="bold" letterSpacing="0.5px">SUPPLY EXHAUSTION BAND</text>
+        
+        {/* Demand Zone */}
+        <rect x="30" y="310" width="760" height="30" rx="4" fill="rgba(0, 245, 212, 0.02)" stroke="rgba(0, 245, 212, 0.1)" strokeWidth="1" strokeDasharray="3 3" />
+        <text x="40" y="328" fill="rgba(0, 245, 212, 0.4)" fontSize="9" fontWeight="bold" letterSpacing="0.5px">INSTITUTIONAL ACCUMULATION POOL (DEMAND)</text>
+
+        {/* 3. Descending Trendline (Resistance) */}
+        <line x1="30" y1="100" x2="780" y2="310" stroke="rgba(189, 0, 255, 0.35)" strokeWidth="1.5" strokeDasharray="5 5" />
+        <text x="320" y="195" fill="rgba(189, 0, 255, 0.6)" fontSize="9.5" fontWeight="bold" transform="rotate(15, 320, 195)" letterSpacing="0.8px">DESCENDING RESISTANCE TRENDLINE</text>
+
+        {/* Chart Scale Axes Lines */}
+        {/* Y Axis line (Price panel boundary) */}
+        <line x1="790" y1="50" x2="790" y2="350" stroke="rgba(255, 255, 255, 0.12)" strokeWidth="1" />
+        {/* X Axis line (Time panel boundary) */}
+        <line x1="30" y1="350" x2="790" y2="350" stroke="rgba(255, 255, 255, 0.12)" strokeWidth="1" />
+
+        {/* Price scale text (Right Axis) */}
+        <g fill="rgba(255, 255, 255, 0.4)" fontSize="9" fontWeight="700" fontFamily="monospace">
+          <text x="798" y="103">₹72,000</text>
+          <text x="798" y="153">₹69,500</text>
+          <text x="798" y="203">₹67,000</text>
+          <text x="798" y="253">₹64,500</text>
+          <text x="798" y="303">₹62,000</text>
+          <text x="798" y="353">₹59,500</text>
+        </g>
+
+        {/* Time scale text (Bottom Axis) */}
+        <g fill="rgba(255, 255, 255, 0.4)" fontSize="9" fontWeight="700" textAnchor="middle">
+          <text x="120" y="368">09:30</text>
+          <text x="240" y="368">11:00</text>
+          <text x="360" y="368">12:30</text>
+          <text x="480" y="368">14:00</text>
+          <text x="600" y="368">15:30</text>
+          <text x="720" y="368">17:00</text>
+          <text x="780" y="368">18:30</text>
+        </g>
+
+        {/* Clip Path for Scroll Animation */}
+        <clipPath id="chart-reveal-clip">
+          <rect x="0" y="0" width={30 + progress * 760} height="400" />
+        </clipPath>
+
+        {/* 4. Chart Content (Candles, Volume and EMA) - Controlled by clipPath */}
+        <g clipPath="url(#chart-reveal-clip)">
+          {/* EMA line background shade */}
+          <path d="M 30 130 L 60 137 L 90 145 L 120 165 L 150 170 L 180 180 L 210 192 L 240 202 L 270 210 L 300 217 L 330 227 L 360 235 L 390 242 L 420 247 L 450 246 L 480 245 L 510 214 L 540 187 L 570 182 L 600 157 L 630 132 L 660 125 L 690 115 L 720 87 L 750 65 L 780 47 L 780 350 L 30 350 Z" fill="url(#chart-area-grad)" />
+          
+          {/* EMA line */}
+          <path d="M 30 130 L 60 137 L 90 145 L 120 165 L 150 170 L 180 180 L 210 192 L 240 202 L 270 210 L 300 217 L 330 227 L 360 235 L 390 242 L 420 247 L 450 246 L 480 245 L 510 214 L 540 187 L 570 182 L 600 157 L 630 132 L 660 125 L 690 115 L 720 87 L 750 65 L 780 47" stroke="rgba(189, 0, 255, 0.6)" strokeWidth="2" strokeLinecap="round" />
+
+          {/* Volume bars at the bottom */}
+          {candles.map((c, i) => {
+            const isBullish = c.close < c.open;
+            const volHeight = c.vol * 0.6;
+            const volY = 350 - volHeight;
+            const volColor = isBullish ? 'rgba(0, 245, 212, 0.12)' : 'rgba(239, 68, 68, 0.12)';
+            const volStroke = isBullish ? 'rgba(0, 245, 212, 0.25)' : 'rgba(239, 68, 68, 0.25)';
+            return (
+              <rect
+                key={`vol-${i}`}
+                x={c.x - 5}
+                y={volY}
+                width="10"
+                height={volHeight}
+                fill={volColor}
+                stroke={volStroke}
+                strokeWidth="0.5"
+              />
+            );
+          })}
+
+          {/* Candlesticks */}
+          {candles.map((c, i) => {
+            const isBullish = c.close < c.open;
+            const bodyHeight = Math.max(2, Math.abs(c.close - c.open));
+            const bodyY = Math.min(c.open, c.close);
+            const color = isBullish ? '#00F5D4' : '#EF4444';
+            const fillColor = isBullish ? 'rgba(0, 245, 212, 0.25)' : 'rgba(239, 68, 68, 0.25)';
+
+            return (
+              <g key={i}>
+                {/* Wick */}
+                <line x1={c.x} y1={c.high} x2={c.x} y2={c.low} stroke={color} strokeWidth="1.5" />
+                {/* Body */}
+                <rect
+                  x={c.x - 6}
+                  y={bodyY}
+                  width="12"
+                  height={bodyHeight}
+                  fill={fillColor}
+                  stroke={color}
+                  strokeWidth="1.5"
+                  rx="1.5"
+                />
+              </g>
+            );
+          })}
+
+          {/* Dotted target projection lines from breakout candle */}
+          <line x1="510" y1="180" x2="780" y2="40" stroke="rgba(0, 245, 212, 0.25)" strokeWidth="1" strokeDasharray="3 3" />
+        </g>
+
+        {/* 5. BUY Signal overlay - Pops up once breakout is reached */}
+        <g style={{
+          opacity: showBuySignal ? 1 : 0,
+          transform: `scale(${showBuySignal ? 1 : 0.6})`,
+          transformOrigin: '510px 295px',
+          transition: 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)'
+        }}>
+          {/* Glowing Green Breakout Circle & Upwards Indicator Triangle */}
+          <polygon points="510,250 502,263 518,263" fill="#00F5D4" filter="url(#neon-glow)" />
+          
+          {/* Signal Indicator Line */}
+          <path d="M 510 240 L 510 285" stroke="#00F5D4" strokeWidth="1.2" strokeDasharray="2 2" />
+
+          {/* Buy Badge Card below candle low */}
+          <g transform="translate(475, 285)">
+            <rect x="0" y="0" width="70" height="30" rx="8" fill="#10B981" filter="url(#neon-glow)" />
+            <text x="35" y="19" fill="#000" fontSize="11" fontWeight="900" textAnchor="middle" letterSpacing="0.5px">★ BUY</text>
+          </g>
+
+          {/* Breakout Label */}
+          <g transform="translate(555, 275)">
+            <rect x="0" y="0" width="130" height="36" rx="6" fill="rgba(0, 245, 212, 0.08)" stroke="rgba(0, 245, 212, 0.25)" strokeWidth="1" />
+            <text x="65" y="15" fill="#00F5D4" fontSize="8" fontWeight="900" textAnchor="middle" letterSpacing="0.8px" textTransform="uppercase">Trendline Breakout</text>
+            <text x="65" y="27" fill="#fff" fontSize="8.5" fontWeight="700" textAnchor="middle">Volume Imbalance Confirmed</text>
+          </g>
+          
+          {/* Retest indicator circle */}
+          <circle cx="570" cy="182" r="8" fill="rgba(0, 245, 212, 0.15)" stroke="#00F5D4" strokeWidth="1.5" />
+          <circle cx="570" cy="182" r="3" fill="#00F5D4" />
+          <text x="570" y="207" fill="#94a3b8" fontSize="8" textAnchor="middle">Pattern Retest (Support)</text>
+          
+          {/* Profit Target Label */}
+          <g transform="translate(710, 10)">
+            <rect x="0" y="0" width="75" height="30" rx="6" fill="rgba(16, 185, 129, 0.08)" stroke="rgba(16, 185, 129, 0.25)" strokeWidth="1" />
+            <text x="37.5" y="18" fill="#10B981" fontSize="9" fontWeight="900" textAnchor="middle">+17.8% Rally</text>
+          </g>
+        </g>
+      </svg>
+      
+      {/* Simulation Info Footer */}
+      <div style={{ marginTop: '0.8rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', color: '#64748b', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '0.8rem' }}>
+        <div>Interactive Neural Scanner Simulation</div>
+        <div style={{ display: 'flex', gap: '15px' }}>
+          <span><strong style={{ color: '#00F5D4' }}>Buy Signal:</strong> Triggered</span>
+          <span><strong style={{ color: '#bd00ff' }}>Model:</strong> Ciper Eye v4</span>
+        </div>
       </div>
     </div>
   );
@@ -352,16 +458,16 @@ function App() {
     
     heroSlide2Badge: "Featured Indicator",
     heroSlide2Title1: "Ciper Eye",
-    heroSlide2Title2: "Signal Engine",
+    heroSlide2Title2: "AI Powered Analyser",
     heroSlide2Desc: "Generates high-probability buy/sell signals. Integrate it with your existing strategy to get precise entry, take profit (TP), and stop loss (SL) levels.",
 
-    accuracyValue: 94,
+    accuracyValue: 75,
     
     stat1Num: "730K",
     stat1Label: "Calculations/sec",
     stat1Desc: "Real-time compute nodes analyzing micro-structure changes.",
     
-    stat2Num: "94%",
+    stat2Num: "75%",
     stat2Label: "Model Accuracy",
     stat2Desc: "Historical test results on multi-timeframe breakouts.",
     
@@ -1487,92 +1593,137 @@ function App() {
           <NeuralOrb />
 
           <div className="hero-content-split">
-            {/* Left Column: Text Slider */}
-            <div className="hero-slider-column">
-              <div className="hero-slider-slide" key={activeHeroSlide}>
-                {systemConfig.indicatorMode === 'prebook' && systemConfig.countdownTargetDate && timeLeft && !timeLeft.expired ? (
-                  /* Active ticking countdown timer */
-                  <div 
-                    className="hero-countdown-container"
-                    style={{
-                      display: 'inline-flex',
-                      gap: '12px',
-                      marginBottom: '1.2rem',
-                      background: 'rgba(189, 0, 255, 0.06)',
-                      border: '2px dashed rgba(189, 0, 255, 0.35)',
-                      padding: '8px 18px',
-                      borderRadius: '16px',
-                      boxShadow: '0 0 20px rgba(189, 0, 255, 0.15)',
-                      alignItems: 'center',
-                      cursor: 'pointer',
-                      transition: 'all 0.3s ease',
-                      userSelect: 'none'
-                    }}
-                    onClick={triggerCelebration}
-                    onMouseEnter={triggerCelebration}
-                  >
-                    <span style={{ fontSize: '0.72rem', color: '#bd00ff', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '1px', marginRight: '6px' }}>💥 Launching In:</span>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff', fontFamily: 'monospace' }}>
-                        {String(timeLeft.days).padStart(2, '0')}
-                      </span>
-                      <span style={{ fontSize: '0.55rem', color: '#a78bfa', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Days</span>
-                    </div>
-                    <span style={{ color: '#bd00ff', fontWeight: '900', fontSize: '1.1rem', marginBottom: '8px' }}>:</span>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff', fontFamily: 'monospace' }}>
-                        {String(timeLeft.hours).padStart(2, '0')}
-                      </span>
-                      <span style={{ fontSize: '0.55rem', color: '#a78bfa', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Hrs</span>
-                    </div>
-                    <span style={{ color: '#bd00ff', fontWeight: '900', fontSize: '1.1rem', marginBottom: '8px' }}>:</span>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff', fontFamily: 'monospace' }}>
-                        {String(timeLeft.minutes).padStart(2, '0')}
-                      </span>
-                      <span style={{ fontSize: '0.55rem', color: '#a78bfa', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Mins</span>
-                    </div>
-                    <span style={{ color: '#bd00ff', fontWeight: '900', fontSize: '1.1rem', marginBottom: '8px' }}>:</span>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#bd00ff', fontFamily: 'monospace', textShadow: '0 0 10px rgba(189,0,255,0.4)' }}>
-                        {String(timeLeft.seconds).padStart(2, '0')}
-                      </span>
-                      <span style={{ fontSize: '0.55rem', color: '#bd00ff', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Secs</span>
-                    </div>
+            {/* Left Column: Headline, Description and CTA */}
+            <div className="hero-left-content" style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+              {systemConfig.indicatorMode === 'prebook' && systemConfig.countdownTargetDate && timeLeft && !timeLeft.expired ? (
+                /* Active ticking countdown timer */
+                <div 
+                  className="hero-countdown-container"
+                  style={{
+                    display: 'inline-flex',
+                    gap: '12px',
+                    marginBottom: '1.5rem',
+                    background: 'rgba(189, 0, 255, 0.06)',
+                    border: '2px dashed rgba(189, 0, 255, 0.35)',
+                    padding: '8px 18px',
+                    borderRadius: '16px',
+                    boxShadow: '0 0 20px rgba(189, 0, 255, 0.15)',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    userSelect: 'none'
+                  }}
+                  onClick={triggerCelebration}
+                  onMouseEnter={triggerCelebration}
+                >
+                  <span style={{ fontSize: '0.72rem', color: '#bd00ff', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '1px', marginRight: '6px' }}>💥 Launching In:</span>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff', fontFamily: 'monospace' }}>
+                      {String(timeLeft.days).padStart(2, '0')}
+                    </span>
+                    <span style={{ fontSize: '0.55rem', color: '#a78bfa', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Days</span>
                   </div>
-                ) : (
-                  /* Pulse glowing next-gen badge */
-                  <div className="hero-badge next-gen-badge">
-                    <span className="pulse-dot"></span> Ciper Eye Engine
+                  <span style={{ color: '#bd00ff', fontWeight: '900', fontSize: '1.1rem', marginBottom: '8px' }}>:</span>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff', fontFamily: 'monospace' }}>
+                      {String(timeLeft.hours).padStart(2, '0')}
+                    </span>
+                    <span style={{ fontSize: '0.55rem', color: '#a78bfa', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Hrs</span>
                   </div>
-                )}
+                  <span style={{ color: '#bd00ff', fontWeight: '900', fontSize: '1.1rem', marginBottom: '8px' }}>:</span>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff', fontFamily: 'monospace' }}>
+                      {String(timeLeft.minutes).padStart(2, '0')}
+                    </span>
+                    <span style={{ fontSize: '0.55rem', color: '#a78bfa', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Mins</span>
+                  </div>
+                  <span style={{ color: '#bd00ff', fontWeight: '900', fontSize: '1.1rem', marginBottom: '8px' }}>:</span>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#bd00ff', fontFamily: 'monospace', textShadow: '0 0 10px rgba(189,0,255,0.4)' }}>
+                      {String(timeLeft.seconds).padStart(2, '0')}
+                    </span>
+                    <span style={{ fontSize: '0.55rem', color: '#bd00ff', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.5px' }}>Secs</span>
+                  </div>
+                </div>
+              ) : (
+                /* Pulse glowing next-gen badge */
+                <div className="hero-badge next-gen-badge">
+                  <span className="pulse-dot"></span> Ciper Eye AI Powered Analyser
+                </div>
+              )}
 
-                <h1 className="hero-title">
-                  <span className="hero-title-top">Ciper Eye</span> <br />
-                  <span className="hero-title-gradient">Signal Engine</span>
-                </h1>
-                
-                <p className="hero-description">
-                  Automatically plot high-probability trend lines and identify chart pattern breakout zones in higher timeframes (H1, H4, D1). 
-                  Generate high-probability buy/sell signals and integrate them with your existing strategy to get precise entries, take profit (TP), and stop loss (SL) levels.
-                </p>
+              <h1 className="hero-title" style={{ textAlign: 'left', fontSize: '3.8rem', lineHeight: '1.1', marginBottom: '1.2rem' }}>
+                <span className="hero-title-top">{webContent.heroSlide2Title1 || 'Ciper Eye'}</span> <br />
+                <span className="hero-title-gradient">{webContent.heroSlide2Title2 || 'AI Powered Analyser'}</span>
+              </h1>
+              
+              {/* Premium Tagline Quote */}
+              <div className="hero-quote-tagline" style={{
+                borderLeft: '3px solid #00F5D4',
+                paddingLeft: '15px',
+                margin: '0 0 1.8rem 0',
+                fontStyle: 'italic',
+                fontSize: '1.15rem',
+                color: '#e2e8f0',
+                fontWeight: '600',
+                lineHeight: '1.4',
+                textShadow: '0 0 15px rgba(0, 245, 212, 0.15)',
+                fontFamily: "'Outfit', sans-serif"
+              }}>
+                "Bring your trading and investing to the next level"
+              </div>
+              
+              <p className="hero-description" style={{ textAlign: 'left', margin: '0 0 2.5rem 0', maxWidth: '100%' }}>
+                {webContent.heroSlide2Desc || 'Generates high-probability buy/sell signals. Integrate it with your existing strategy to get precise entry, take profit (TP), and stop loss (SL) levels.'}
+              </p>
 
-                {/* Next-Level Trade Signal Simulator */}
-                <TradeSignalSimulator />
+              <div className="hero-buttons" style={{ display: 'flex', justifyContent: 'flex-start', gap: '1.2rem', marginBottom: '2rem', width: '100%' }}>
+                <button className="btn-primary magnetic-element" onClick={() => scrollToSection('prebook')}>
+                  Pre-Book Now
+                </button>
+                <button className="btn-secondary" onClick={() => scrollToSection('features')}>
+                  Learn More
+                </button>
+              </div>
 
-                <div className="hero-buttons" style={{ marginTop: '2.5rem' }}>
-                  <button className="btn-primary magnetic-element" onClick={() => scrollToSection('prebook')}>
-                    Pre-Book Now
-                  </button>
-                  <button className="btn-secondary" onClick={() => scrollToSection('features')}>
-                    Learn More
-                  </button>
+              {/* Dynamic Stats Row under buttons */}
+              <div style={{ display: 'flex', gap: '2.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1.5rem', width: '100%', marginTop: '0.5rem' }}>
+                <div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: '800', color: '#00F5D4', fontFamily: "'Outfit', sans-serif" }}>75%</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.8px', marginTop: '2px' }}>Signal Accuracy</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: '800', color: '#bd00ff', fontFamily: "'Outfit', sans-serif" }}>&lt; 50ms</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.8px', marginTop: '2px' }}>Neural Latency</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: '800', color: '#3b82f6', fontFamily: "'Outfit', sans-serif" }}>24/7</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '800', letterSpacing: '0.8px', marginTop: '2px' }}>Live Scans</div>
                 </div>
               </div>
+            </div>
+
+            {/* Right Column: Chart and tags */}
+            <div className="hero-right-content" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              {/* Floating Key Performance Tags */}
+              <div className="chart-floating-metrics" style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '1.5rem', width: '100%', pointerEvents: 'none' }}>
+                <span className="floating-metric" style={{ background: 'rgba(0, 245, 212, 0.05)', border: '1px solid rgba(0, 245, 212, 0.15)', padding: '5px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '800', color: '#00F5D4', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  ⚡ Real-Time Breakouts
+                </span>
+                <span className="floating-metric" style={{ background: 'rgba(189, 0, 255, 0.05)', border: '1px solid rgba(189, 0, 255, 0.15)', padding: '5px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '800', color: '#d866ff', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  🎯 75% Accuracy
+                </span>
+                <span className="floating-metric" style={{ background: 'rgba(0, 87, 255, 0.05)', border: '1px solid rgba(0, 87, 255, 0.15)', padding: '5px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '800', color: '#3b82f6', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  🛡️ No Repaint
+                </span>
+              </div>
+
+              {/* Next-Level Scroll Animated Chart */}
+              <ScrollAnimatedChart />
             </div>
           </div>
         </section>

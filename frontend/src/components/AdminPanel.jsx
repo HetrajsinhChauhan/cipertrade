@@ -113,7 +113,7 @@ export default function AdminPanel() {
     heroDesc: "Ciper uses advanced neural networks to map out the market in real-time. Detects support/resistance zones, high-probability convergence areas, and breakouts automatically.",
     heroSlide2Badge: "Featured Indicator",
     heroSlide2Title1: "Ciper Eye",
-    heroSlide2Title2: "Signal Engine",
+    heroSlide2Title2: "AI Powered Indicator",
     heroSlide2Desc: "Generates high-probability buy/sell signals. Integrate it with your existing strategy to get precise entry, take profit (TP), and stop loss (SL) levels.",
     accuracyValue: 94,
     stat1Num: "730K",
@@ -572,7 +572,7 @@ export default function AdminPanel() {
   };
 
   const handleNotifyLaunchAll = async () => {
-    if (!window.confirm("Are you sure you want to broadcast the Launch Email notification to ALL pre-booked leads? This will send live alerts to everyone on the waitlist.")) {
+    if (!window.confirm("Are you sure you want to broadcast the Launch Email notification to ALL pre-ordered leads? This will send live alerts to everyone on the waitlist.")) {
       return;
     }
     setActionLoading('notify-launch');
@@ -610,6 +610,48 @@ export default function AdminPanel() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to simulate expiry');
       setSuccess(`Simulation complete! Subscription for ${data.lead.name} set to expire in 23 hours. Expiration warning email logs sent.`);
+      fetchDashboardData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleExtendLead = async (leadId) => {
+    if (!window.confirm("Are you sure you want to extend this lead's subscription by 30 days?")) return;
+    setActionLoading(leadId);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch(`${API_URL}/api/admin/leads/${leadId}/extend`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to extend subscription');
+      setSuccess('Subscription extended by 30 days successfully!');
+      fetchDashboardData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRevokeLead = async (leadId) => {
+    if (!window.confirm("Are you sure you want to revoke this lead's access?")) return;
+    setActionLoading(leadId);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch(`${API_URL}/api/admin/leads/${leadId}/revoke`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to revoke access');
+      setSuccess('Access revoked successfully!');
       fetchDashboardData();
     } catch (err) {
       setError(err.message);
@@ -1241,7 +1283,7 @@ export default function AdminPanel() {
               <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '1.2rem', marginBottom: '2rem' }}>
                 <p style={{ color: '#94a3b8', fontSize: '0.88rem', margin: 0 }}>
                   {activeTab === 'analytics' && 'Visualize platform metrics, plan preferences, and conversion rates.'}
-                  {activeTab === 'leads' && 'Manage pre-booking requests and notify all waitlist members when indicators go live.'}
+                  {activeTab === 'leads' && 'Manage pre-order requests and notify all waitlist members when indicators go live.'}
                   {activeTab === 'subscriptions' && 'Manage active, expired, and expiring user subscriptions, extend access, or revoke license.'}
                   {activeTab === 'referrals' && 'Generate and monitor tracking links for influencers.'}
                   {activeTab === 'indicators' && 'Introduce new indicator offerings, configure discount pricing and timers, and view bookings.'}
@@ -1304,7 +1346,7 @@ export default function AdminPanel() {
                   <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.04)', borderRadius: '16px', padding: '1.2rem', backdropFilter: 'blur(10px)' }}>
                     <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Indicator mode</div>
                     <div style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: '12px', color: '#bd00ff', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                      {config.indicatorMode === 'prebook' ? '📅 PRE-BOOKING' : '⚡ LIVE BOOK NOW'}
+                      {config.indicatorMode === 'prebook' ? '📅 PRE-ORDERING' : '⚡ LIVE BOOK NOW'}
                     </div>
                   </div>
                 </div>
@@ -1641,17 +1683,30 @@ export default function AdminPanel() {
                                 </button>
                               ) : (
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
-                                  <span style={{ color: '#64748b', fontSize: '0.75rem' }}>Emailed ✓</span>
-                                  {lead.plan === 'monthly' && (
-                                    <button
-                                      onClick={() => handleSimulateExpiry(lead._id)}
-                                      className="btn-secondary"
-                                      style={{ padding: '0.3rem 0.6rem', fontSize: '0.68rem', borderRadius: '6px', border: '1px solid rgba(249, 115, 22, 0.3)', color: '#f97316', cursor: 'pointer' }}
-                                      disabled={actionLoading === lead._id}
-                                    >
-                                      {actionLoading === lead._id ? 'Simulating...' : 'Simulate Expiry (23h)'}
-                                    </button>
-                                  )}
+                                  <button
+                                    onClick={() => handleExtendLead(lead._id)}
+                                    className="btn-secondary"
+                                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.68rem', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', cursor: 'pointer' }}
+                                    disabled={actionLoading === lead._id}
+                                  >
+                                    Extend 30d
+                                  </button>
+                                  <button
+                                    onClick={() => handleRevokeLead(lead._id)}
+                                    className="btn-secondary"
+                                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.68rem', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', cursor: 'pointer' }}
+                                    disabled={actionLoading === lead._id}
+                                  >
+                                    Revoke
+                                  </button>
+                                  <button
+                                    onClick={() => handleSimulateExpiry(lead._id)}
+                                    className="btn-secondary"
+                                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.68rem', borderRadius: '6px', border: '1px solid rgba(249, 115, 22, 0.3)', color: '#f97316', cursor: 'pointer' }}
+                                    disabled={actionLoading === lead._id}
+                                  >
+                                    Simulate (23h)
+                                  </button>
                                 </div>
                               )}
                             </td>
@@ -2060,6 +2115,56 @@ export default function AdminPanel() {
                               style={{ padding: '0.5rem 0.8rem', fontSize: '0.8rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '2px solid rgba(255,255,255,0.06)', color: '#fff', width: '100%', resize: 'vertical', boxSizing: 'border-box' }}
                             />
                           </div>
+
+                          {/* Quick Discount Controls for Edit Indicator */}
+                          <div style={{
+                            display: 'flex',
+                            gap: '10px',
+                            background: 'rgba(255, 255, 255, 0.02)',
+                            border: '1px dashed rgba(255, 255, 255, 0.08)',
+                            padding: '10px',
+                            borderRadius: '8px',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginBottom: '4px'
+                          }}>
+                            <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600 }}>Discount Manager:</span>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingIndicator({
+                                    ...editingIndicator,
+                                    price1Month: editingIndicator.strike1Month ?? 3499,
+                                    price3Months: editingIndicator.strike3Months ?? 7999,
+                                    price6Months: editingIndicator.strike6Months ?? 13999,
+                                    price1Year: editingIndicator.strike1Year ?? 22999
+                                  });
+                                }}
+                                className="btn-secondary"
+                                style={{ padding: '4px 10px', fontSize: '0.72rem', borderRadius: '4px', border: '1px solid rgba(255, 255, 255, 0.1)', cursor: 'pointer' }}
+                              >
+                                Remove All Discounts
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingIndicator({
+                                    ...editingIndicator,
+                                    price1Month: Math.round((editingIndicator.strike1Month ?? 3499) * 0.5),
+                                    price3Months: Math.round((editingIndicator.strike3Months ?? 7999) * 0.5),
+                                    price6Months: Math.round((editingIndicator.strike6Months ?? 13999) * 0.5),
+                                    price1Year: Math.round((editingIndicator.strike1Year ?? 22999) * 0.5)
+                                  });
+                                }}
+                                className="btn-secondary"
+                                style={{ padding: '4px 10px', fontSize: '0.72rem', borderRadius: '4px', border: '1px solid rgba(189, 0, 255, 0.3)', color: '#d866ff', background: 'rgba(189, 0, 255, 0.08)', cursor: 'pointer', fontWeight: 700 }}
+                              >
+                                Apply 50% Launch Discount
+                              </button>
+                            </div>
+                          </div>
+
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                             <div className="form-group" style={{ marginBottom: 0 }}>
                               <label style={{ fontSize: '0.7rem' }}>Status Tag</label>
@@ -2326,6 +2431,55 @@ export default function AdminPanel() {
                                 <option value="neural">Neural Predictor</option>
                                 <option value="momentum">Momentum Osc</option>
                               </select>
+                            </div>
+                          </div>
+
+                          {/* Quick Discount Controls for New Indicator */}
+                          <div style={{
+                            display: 'flex',
+                            gap: '10px',
+                            background: 'rgba(255, 255, 255, 0.02)',
+                            border: '1px dashed rgba(255, 255, 255, 0.08)',
+                            padding: '10px',
+                            borderRadius: '8px',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginBottom: '4px'
+                          }}>
+                            <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600 }}>Discount Manager:</span>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNewIndicator({
+                                    ...newIndicator,
+                                    price1Month: newIndicator.strike1Month ?? 3499,
+                                    price3Months: newIndicator.strike3Months ?? 7999,
+                                    price6Months: newIndicator.strike6Months ?? 13999,
+                                    price1Year: newIndicator.strike1Year ?? 22999
+                                  });
+                                }}
+                                className="btn-secondary"
+                                style={{ padding: '4px 10px', fontSize: '0.72rem', borderRadius: '4px', border: '1px solid rgba(255, 255, 255, 0.1)', cursor: 'pointer' }}
+                              >
+                                Remove All Discounts
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNewIndicator({
+                                    ...newIndicator,
+                                    price1Month: Math.round((newIndicator.strike1Month ?? 3499) * 0.5),
+                                    price3Months: Math.round((newIndicator.strike3Months ?? 7999) * 0.5),
+                                    price6Months: Math.round((newIndicator.strike6Months ?? 13999) * 0.5),
+                                    price1Year: Math.round((newIndicator.strike1Year ?? 22999) * 0.5)
+                                  });
+                                }}
+                                className="btn-secondary"
+                                style={{ padding: '4px 10px', fontSize: '0.72rem', borderRadius: '4px', border: '1px solid rgba(189, 0, 255, 0.3)', color: '#d866ff', background: 'rgba(189, 0, 255, 0.08)', cursor: 'pointer', fontWeight: 700 }}
+                              >
+                                Apply 50% Launch Discount
+                              </button>
                             </div>
                           </div>
 
@@ -2647,7 +2801,7 @@ export default function AdminPanel() {
                           cursor: 'pointer'
                         }}
                       >
-                        <option value="prebook" style={{ background: '#0a0a0c', color: '#fff' }}>Pre-Booking Active (Default Waitlist Mode)</option>
+                        <option value="prebook" style={{ background: '#0a0a0c', color: '#fff' }}>Pre-Ordering Active (Default Waitlist Mode)</option>
                         <option value="booknow" style={{ background: '#0a0a0c', color: '#fff' }}>Book Now Active (Live Sales Mode)</option>
                       </select>
                     </div>

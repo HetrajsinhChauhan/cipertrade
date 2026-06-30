@@ -30,7 +30,7 @@ export default function ComingSoon({
   }, [allIndicators, activeIndicator]);
 
   const indicator = activeIndicator || (allIndicators.length > 0 ? allIndicators[0] : {
-    title: "Ciper Eye",
+    title: "Cipher Eye",
     desc: "Generates high-probability buy/sell signals. Integrate it with your existing strategy to get precise entry, take profit (TP), and stop loss (SL) levels.",
     status: "Beta Testing",
     icon: "trend",
@@ -299,7 +299,7 @@ export default function ComingSoon({
   ];
 
   return (
-    <section className="coming-soon-section" id="prebook" ref={sectionRef}>
+    <section className="coming-soon-section" id="plans" ref={sectionRef}>
       <div className="section-header">
         <div className="card-badge coming-soon-badge">{indicator ? `INDICATOR ${indicator.status.toUpperCase()}` : 'INDICATOR COMING SOON'}</div>
         <h2>{indicator ? indicator.title : "Auto Trend Line Generator"}</h2>
@@ -379,7 +379,7 @@ export default function ComingSoon({
             <div className="direct-chart-wrapper" ref={chartRef}>
               <div className="chart-floating-metrics">
                 <span className="floating-metric">
-                  <span className="indicator-dot"></span> Ciper Eye Scanner
+                  <span className="indicator-dot"></span> Cipher Eye Scanner
                 </span>
                 <span className="floating-metric text-teal">ACTIVE SCAN</span>
                 <span className="floating-metric">Probability: <strong className="text-green">94%</strong></span>
@@ -527,7 +527,7 @@ export default function ComingSoon({
         {/* Row 2: Exclusive Launch Pricing */}
         <div className="coming-soon-pricing-row">
           <div className="pricing-cards-container centered-pricing">
-            <h3>Exclusive Pre-Book Discount Pricing</h3>
+            <h3>Exclusive Pre-Order Discount Pricing</h3>
             <div style={{ fontSize: '0.78rem', color: '#bd00ff', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '1.2rem', display: 'inline-block', padding: '4px 14px', background: 'rgba(189, 0, 255, 0.08)', borderRadius: '20px', border: '1px solid rgba(189, 0, 255, 0.2)' }}>
               🎯 Plan for: {indicator ? indicator.title : 'Ciper Indicator'}
             </div>
@@ -586,6 +586,25 @@ export default function ComingSoon({
                           textTransform: 'uppercase'
                         }}>
                           BEST VALUE
+                        </div>
+                      )}
+
+                      {plan.strike && Math.round(100 - (plan.price / plan.strike) * 100) >= 50 && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '12px',
+                          right: '12px',
+                          background: 'rgba(239, 68, 68, 0.15)',
+                          color: '#ef4444',
+                          border: '1px solid rgba(239, 68, 68, 0.35)',
+                          padding: '3px 10px',
+                          borderRadius: '8px',
+                          fontSize: '0.62rem',
+                          fontWeight: '900',
+                          letterSpacing: '0.5px',
+                          zIndex: 5
+                        }}>
+                          💥 50% LAUNCH OFF
                         </div>
                       )}
 
@@ -662,7 +681,7 @@ export default function ComingSoon({
                         boxShadow: isSelected ? '0 0 15px rgba(189, 0, 255, 0.4)' : 'none'
                       }}
                     >
-                      {systemConfig.indicatorMode === 'prebook' ? 'Pre-Book Plan' : 'Subscribe Now'}
+                      {systemConfig.indicatorMode === 'prebook' ? 'Pre-Order Plan' : 'Subscribe Now'}
                     </button>
                   </div>
                 );
