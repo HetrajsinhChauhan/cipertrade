@@ -5553,5 +5553,362 @@ html.lenis, html.lenis body {
   }
 }
 
+/* ==========================================================
+   Coming Soon Mode & Pre-Order Overlay Styling
+   ========================================================== */
+
+.coming-soon-blur-active {
+  filter: blur(18px) brightness(0.65);
+  pointer-events: none;
+  user-select: none;
+  transition: filter 0.8s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.8s ease;
+}
+
+.coming-soon-overlay-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter', sans-serif;
+  overflow: hidden;
+  padding: 1.5rem;
+}
+
+/* Ambient Back-Glows for Overlay */
+.coming-soon-glow-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.coming-soon-glow-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.35;
+  animation: floatComingSoonOrb 15s infinite alternate ease-in-out;
+}
+
+.orb-purple {
+  top: 20%;
+  left: 20%;
+  width: 450px;
+  height: 450px;
+  background: radial-gradient(circle, rgba(189, 0, 255, 0.4) 0%, transparent 70%);
+}
+
+.orb-teal {
+  bottom: 15%;
+  right: 15%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(0, 212, 170, 0.3) 0%, transparent 70%);
+  animation-delay: -5s;
+}
+
+@keyframes floatComingSoonOrb {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(50px, 40px) scale(1.15); }
+}
+
+/* Glassmorphic Central Card */
+.coming-soon-overlay-card {
+  width: 100%;
+  max-width: 540px;
+  background: rgba(8, 8, 12, 0.78);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid rgba(189, 0, 255, 0.28);
+  border-radius: 28px;
+  padding: 3rem 2.5rem;
+  text-align: center;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.85),
+              0 0 50px rgba(189, 0, 255, 0.12),
+              inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  position: relative;
+  z-index: 10;
+  animation: comingSoonCardReveal 1s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+@keyframes comingSoonCardReveal {
+  0% { transform: translateY(40px) scale(0.95); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* Floating Neural Orb wrapper inside Card */
+.coming-soon-orb-wrapper {
+  margin: 0 auto 2rem auto;
+  transform: scale(1.1);
+  filter: drop-shadow(0 0 20px rgba(189, 0, 255, 0.3));
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 120px;
+}
+
+/* Landing Step Styles */
+.coming-soon-badge-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(189, 0, 255, 0.08);
+  border: 1px solid rgba(189, 0, 255, 0.32);
+  border-radius: 20px;
+  padding: 6px 16px;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 0 15px rgba(189, 0, 255, 0.1);
+}
+
+.coming-soon-live-dot {
+  width: 6px;
+  height: 6px;
+  background-color: var(--primary-color);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--primary-color);
+  animation: pulseGlow 1.5s infinite;
+}
+
+.coming-soon-badge-text {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #d866ff;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.coming-soon-main-title {
+  font-size: 2.8rem;
+  font-weight: 900;
+  line-height: 1.1;
+  color: #fff;
+  letter-spacing: -0.02em;
+  margin-bottom: 1.2rem;
+  text-transform: uppercase;
+}
+
+.coming-soon-main-title .highlight-gradient {
+  background: linear-gradient(135deg, #00f2fe 0%, #bd00ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 15px rgba(0, 242, 254, 0.25));
+}
+
+.coming-soon-desc {
+  font-size: 0.98rem;
+  line-height: 1.6;
+  color: #94a3b8;
+  margin-bottom: 2.2rem;
+  padding: 0 10px;
+}
+
+.coming-soon-action-btn {
+  width: 100%;
+  max-width: 320px;
+  padding: 1rem 2rem;
+  font-size: 1.05rem;
+  border-radius: 50px;
+  letter-spacing: 0.5px;
+  margin-bottom: 1.8rem;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.coming-soon-features-small {
+  display: flex;
+  justify-content: center;
+  gap: 1.2rem;
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 700;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 1.2rem;
+}
+
+/* Form Step Styles */
+.coming-soon-form-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #fff;
+  margin: 0;
+}
+
+.coming-soon-back-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+  padding: 4px 14px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.coming-soon-back-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.coming-soon-form-desc {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  margin-bottom: 1.5rem;
+  text-align: left;
+  line-height: 1.45;
+}
+
+.coming-soon-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  text-align: left;
+}
+
+.coming-soon-form .form-group {
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.coming-soon-form .form-group label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.coming-soon-form .form-group input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.03);
+  border: 2px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 0.65rem 0.9rem;
+  color: #fff;
+  font-size: 0.88rem;
+  font-family: inherit;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.coming-soon-form .form-group input:focus {
+  outline: none;
+  background: rgba(189, 0, 255, 0.03);
+  border-color: rgba(189, 0, 255, 0.5);
+  box-shadow: 0 0 15px rgba(189, 0, 255, 0.15);
+}
+
+.coming-soon-submit-btn {
+  margin-top: 0.8rem;
+  width: 100%;
+  padding: 0.8rem;
+  font-size: 0.95rem;
+  border-radius: 30px;
+}
+
+.coming-soon-loading-spinner-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.coming-soon-status-msg {
+  margin-top: 1rem;
+  padding: 0.7rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.coming-soon-status-msg.error {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.18);
+}
+
+/* Success Step Styles */
+.coming-soon-success-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem 0;
+}
+
+.success-check-circle {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(0, 212, 170, 0.08);
+  border: 2px solid rgba(0, 212, 170, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 0 25px rgba(0, 212, 170, 0.15);
+}
+
+.coming-soon-success-title {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 0.8rem;
+}
+
+.coming-soon-success-desc {
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: #94a3b8;
+  margin-bottom: 0.8rem;
+}
+
+.coming-soon-success-subdesc {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-bottom: 2rem;
+  line-height: 1.5;
+}
+
+.coming-soon-ok-btn {
+  width: 150px;
+  padding: 0.65rem 1.5rem;
+  font-size: 0.88rem;
+  border-radius: 20px;
+}
+
+/* Responsive adjustments for Coming Soon Overlay */
+@media (max-width: 580px) {
+  .coming-soon-overlay-card {
+    padding: 2.2rem 1.5rem;
+    border-radius: 20px;
+  }
+  
+  .coming-soon-main-title {
+    font-size: 2.2rem;
+  }
+  
+  .coming-soon-desc {
+    font-size: 0.88rem;
+    margin-bottom: 1.8rem;
+  }
+
+  .coming-soon-badge-wrapper {
+    padding: 4px 12px;
+    margin-bottom: 1.2rem;
+  }
+}
+
 
 

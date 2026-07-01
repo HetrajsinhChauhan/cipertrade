@@ -560,7 +560,7 @@ export default function PrebookForm({
             type="tel"
             id="phone"
             value={formData.phone}
-            onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/[a-zA-Z]/g, '') })}
+            onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 15) })}
             required
             placeholder="e.g. +91 98765 43210"
           />

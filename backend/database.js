@@ -111,6 +111,10 @@ const configSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  comingSoonMode: {
+    type: Boolean,
+    default: false
+  },
   globalDiscountPercent: {
     type: Number,
     default: 0
@@ -406,6 +410,32 @@ const Indicator = mongoose.model('Indicator', indicatorSchema);
 const WebContent = mongoose.model('WebContent', webContentSchema);
 const RefreshToken = mongoose.model('RefreshToken', refreshTokenSchema);
 
+const comingSoonPreorderSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: [true, 'Name is required'],
+    trim: true
+  },
+  email: {
+    type: String,
+    required: [true, 'Email is required'],
+    unique: true,
+    trim: true,
+    lowercase: true
+  },
+  phone: {
+    type: String,
+    required: [true, 'Phone number is required'],
+    trim: true
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+}, { strict: true });
+
+const ComingSoonPreorder = mongoose.model('ComingSoonPreorder', comingSoonPreorderSchema);
+
 // Setup default configuration if not exists helper
 async function ensureDefaultConfig() {
   try {
@@ -419,7 +449,8 @@ async function ensureDefaultConfig() {
           annualStrikePrice: 599,
           indicatorMode: 'prebook',
           countdownTargetDate: null,
-          maintenanceMode: false
+          maintenanceMode: false,
+          comingSoonMode: false
         }
       },
       { upsert: true }
@@ -627,6 +658,6 @@ mongoose.connection.on('connected', () => {
   }, 500);
 });
 
-module.exports = { Prebooking, Config, Referral, Admin, Indicator, WebContent, RefreshToken, User, Subscription };
+module.exports = { Prebooking, Config, Referral, Admin, Indicator, WebContent, RefreshToken, User, Subscription, ComingSoonPreorder };
 
 

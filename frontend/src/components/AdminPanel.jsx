@@ -54,6 +54,7 @@ export default function AdminPanel() {
 
   // Dashboard state data
   const [prebookings, setPrebookings] = useState([]);
+  const [comingSoonPreorders, setComingSoonPreorders] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [referrals, setReferrals] = useState([]);
   const [indicators, setIndicators] = useState([]);
@@ -85,6 +86,7 @@ export default function AdminPanel() {
     indicatorMode: 'prebook',
     countdownTargetDate: '',
     maintenanceMode: false,
+    comingSoonMode: false,
     globalDiscountPercent: 0
   });
 
@@ -267,6 +269,13 @@ export default function AdminPanel() {
         const data = await leadsRes.json();
         setPrebookings(data.prebookings || []);
         setNotifications(data.notifications || []);
+      }
+
+      // Fetch Coming Soon Preorders
+      const csPreordersRes = await fetch(`${API_URL}/api/admin/comingsoon-preorders`, { headers });
+      if (csPreordersRes.ok) {
+        const csData = await csPreordersRes.json();
+        setComingSoonPreorders(csData || []);
       }
 
       // Fetch Config
@@ -1076,6 +1085,17 @@ export default function AdminPanel() {
               </button>
 
               <button
+                onClick={() => { setActiveTab('comingsoon'); setIsSidebarOpen(false); }}
+                className={`sidebar-link ${activeTab === 'comingsoon' ? 'active' : ''}`}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                <span style={{ flex: 1 }}>Coming Soon Pre-Orders</span>
+                <span style={{ fontSize: '0.72rem', background: activeTab === 'comingsoon' ? 'rgba(189, 0, 255, 0.25)' : 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: '10px', color: '#fff', fontWeight: 600 }}>
+                  {comingSoonPreorders.length}
+                </span>
+              </button>
+
+              <button
                 onClick={() => { setActiveTab('subscriptions'); setIsSidebarOpen(false); }}
                 className={`sidebar-link ${activeTab === 'subscriptions' ? 'active' : ''}`}
               >
@@ -1184,6 +1204,7 @@ export default function AdminPanel() {
                 <div className="admin-header-title">
                   {activeTab === 'analytics' && 'Analytics Dashboard'}
                   {activeTab === 'leads' && 'Requests'}
+                  {activeTab === 'comingsoon' && 'Coming Soon Pre-Orders'}
                   {activeTab === 'subscriptions' && 'User Subscriptions'}
                   {activeTab === 'referrals' && 'Referral Program'}
                   {activeTab === 'indicators' && 'Manage Indicators'}
@@ -1284,6 +1305,7 @@ export default function AdminPanel() {
                 <p style={{ color: '#94a3b8', fontSize: '0.88rem', margin: 0 }}>
                   {activeTab === 'analytics' && 'Visualize platform metrics, plan preferences, and conversion rates.'}
                   {activeTab === 'leads' && 'Manage pre-order requests and notify all waitlist members when indicators go live.'}
+                  {activeTab === 'comingsoon' && 'Manage coming soon platform pre-orders and waitlist leads.'}
                   {activeTab === 'subscriptions' && 'Manage active, expired, and expiring user subscriptions, extend access, or revoke license.'}
                   {activeTab === 'referrals' && 'Generate and monitor tracking links for influencers.'}
                   {activeTab === 'indicators' && 'Introduce new indicator offerings, configure discount pricing and timers, and view bookings.'}
@@ -1713,6 +1735,120 @@ export default function AdminPanel() {
                           </tr>
                         ))
                       )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Tab: Coming Soon Pre-Orders */}
+              {activeTab === 'comingsoon' && (
+                <div className="admin-card" style={{ overflowX: 'auto' }}>
+                  <h3 style={{ marginBottom: '1.2rem', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <span>Coming Soon Platform Pre-Orders</span>
+                    <span style={{ fontSize: '0.72rem', background: 'rgba(189, 0, 255, 0.08)', color: '#bd00ff', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(189, 0, 255, 0.2)', fontWeight: 700 }}>
+                      {comingSoonPreorders.length} Total
+                    </span>
+                  </h3>
+
+                  {/* Search and Filters */}
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '12px',
+                    marginBottom: '1.5rem',
+                    padding: '1.2rem',
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    border: '1px solid rgba(255, 255, 255, 0.04)',
+                    borderRadius: '16px',
+                    alignItems: 'flex-end'
+                  }}>
+                    <div style={{ flex: '2 1 280px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 750, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Search Leads</label>
+                      <input
+                        type="text"
+                        placeholder="Search by name, email, phone..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        style={{
+                          padding: '0.55rem 0.8rem',
+                          fontSize: '0.82rem',
+                          borderRadius: '8px',
+                          background: 'rgba(255, 255, 255, 0.03)',
+                          border: '2px solid rgba(255, 255, 255, 0.06)',
+                          color: '#fff',
+                          width: '100%'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)', color: '#64748b' }}>
+                        <th style={{ padding: '0.8rem' }}>Name</th>
+                        <th style={{ padding: '0.8rem' }}>Email</th>
+                        <th style={{ padding: '0.8rem' }}>Phone</th>
+                        <th style={{ padding: '0.8rem' }}>Pre-Order Date</th>
+                        <th style={{ padding: '0.8rem', textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        let filtered = [...comingSoonPreorders];
+                        if (searchQuery.trim()) {
+                          const q = searchQuery.toLowerCase().trim();
+                          filtered = filtered.filter(p => 
+                            (p.name && p.name.toLowerCase().includes(q)) || 
+                            (p.email && p.email.toLowerCase().includes(q)) || 
+                            (p.phone && p.phone.toLowerCase().includes(q))
+                          );
+                        }
+                        if (filtered.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan="5" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>No pre-order waitlist leads found.</td>
+                            </tr>
+                          );
+                        }
+                        return filtered.map((lead) => (
+                          <tr key={lead._id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.03)', transition: 'background 0.3s' }}>
+                            <td style={{ padding: '0.8rem', fontWeight: 600, color: '#fff' }}>{lead.name}</td>
+                            <td style={{ padding: '0.8rem', color: '#94a3b8' }}>{lead.email}</td>
+                            <td style={{ padding: '0.8rem', color: '#94a3b8' }}>{lead.phone}</td>
+                            <td style={{ padding: '0.8rem', color: '#94a3b8' }}>{new Date(lead.createdAt).toLocaleString()}</td>
+                            <td style={{ padding: '0.8rem', textAlign: 'right' }}>
+                              <button
+                                onClick={async () => {
+                                  if (!window.confirm("Are you sure you want to delete this pre-order?")) return;
+                                  try {
+                                    setActionLoading(lead._id);
+                                    const res = await fetch(`${API_URL}/api/admin/comingsoon-preorders/${lead._id}`, {
+                                      method: 'DELETE',
+                                      headers: { 'Authorization': `Bearer ${token}` }
+                                    });
+                                    if (res.ok) {
+                                      setComingSoonPreorders(prev => prev.filter(p => p._id !== lead._id));
+                                      setSuccess('Pre-order record deleted successfully!');
+                                    } else {
+                                      const data = await res.json();
+                                      throw new Error(data.error || 'Failed to delete pre-order');
+                                    }
+                                  } catch (err) {
+                                    setError(err.message);
+                                  } finally {
+                                    setActionLoading(null);
+                                  }
+                                }}
+                                className="btn-secondary"
+                                style={{ padding: '0.35rem 0.7rem', fontSize: '0.72rem', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444', cursor: 'pointer' }}
+                                disabled={actionLoading === lead._id}
+                              >
+                                {actionLoading === lead._id ? 'Deleting...' : 'Delete'}
+                              </button>
+                            </td>
+                          </tr>
+                        ));
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -2856,6 +2992,39 @@ export default function AdminPanel() {
                         />
                         <label htmlFor="maintenanceMode" style={{ fontSize: '0.78rem', color: '#94a3b8', cursor: 'pointer', fontWeight: 'normal', userSelect: 'none' }}>
                           Enable maintenance mode to block user access to the website and display a maintenance notice screen.
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', color: '#fff' }}>
+                        <span>🚀 Coming Soon Mode</span>
+                        <span style={{
+                          fontSize: '0.65rem',
+                          background: newPricing.comingSoonMode ? 'rgba(189, 0, 255, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                          color: newPricing.comingSoonMode ? '#bd00ff' : '#10b981',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          fontWeight: 700
+                        }}>
+                          {newPricing.comingSoonMode ? 'ACTIVE (BLUR & OVERLAY)' : 'INACTIVE'}
+                        </span>
+                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px' }}>
+                        <input
+                          type="checkbox"
+                          id="comingSoonMode"
+                          style={{
+                            width: '20px',
+                            height: '20px',
+                            cursor: 'pointer',
+                            accentColor: '#bd00ff'
+                          }}
+                          checked={newPricing.comingSoonMode || false}
+                          onChange={(e) => setNewPricing({ ...newPricing, comingSoonMode: e.target.checked })}
+                        />
+                        <label htmlFor="comingSoonMode" style={{ fontSize: '0.78rem', color: '#94a3b8', cursor: 'pointer', fontWeight: 'normal', userSelect: 'none' }}>
+                          Enable Coming Soon mode to blur the entire website background and show a pre-order signup form overlay.
                         </label>
                       </div>
                     </div>

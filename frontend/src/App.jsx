@@ -15,6 +15,7 @@ import StarField from './components/StarField';
 import ComingSoon from './components/ComingSoon';
 import AdminPanel from './components/AdminPanel';
 import MaintenanceNotice from './components/MaintenanceNotice';
+import ComingSoonOverlay from './components/ComingSoonOverlay';
 
 const API_URL = import.meta.env.VITE_API_URL || (
   window.location.hostname === 'localhost' || 
@@ -705,9 +706,9 @@ function App() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Disable body scrolling when modal is open
+  // Disable body scrolling when modal is open or Coming Soon mode is active
   useEffect(() => {
-    if (isModalOpen) {
+    if (isModalOpen || (systemConfig.comingSoonMode && currentPath !== '/adminhetraj')) {
       document.body.style.overflow = 'hidden';
       document.body.style.paddingRight = '0px';
     } else {
@@ -718,7 +719,7 @@ function App() {
       document.body.style.overflow = '';
       document.body.style.paddingRight = '';
     };
-  }, [isModalOpen]);
+  }, [isModalOpen, systemConfig.comingSoonMode, currentPath]);
 
   const triggerCelebration = () => {
     const container = document.querySelector('.hero');
@@ -1361,7 +1362,8 @@ function App() {
 
   return (
     <div ref={container} style={{ position: 'relative' }}>
-      {currentPath !== '/adminhetraj' && (
+      <div className={systemConfig.comingSoonMode && currentPath !== '/adminhetraj' ? 'coming-soon-blur-active' : ''}>
+        {currentPath !== '/adminhetraj' && (
         <div style={{
           backgroundColor: '#00D4AA',
           color: '#ffffff',
@@ -2235,8 +2237,11 @@ function App() {
           </div>
         </div>
       )}
+      </div>
 
-
+      {systemConfig.comingSoonMode && currentPath !== '/adminhetraj' && (
+        <ComingSoonOverlay />
+      )}
     </div>
   );
 }

@@ -28,7 +28,7 @@ const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID || '',
   key_secret: process.env.RAZORPAY_KEY_SECRET || ''
 });
-const { Prebooking, Config, Referral, Admin, Indicator, WebContent, RefreshToken, User, Subscription } = require('./database');
+const { Prebooking, Config, Referral, Admin, Indicator, WebContent, RefreshToken, User, Subscription, ComingSoonPreorder } = require('./database');
 
 // Helper to hash passwords using SHA-256 (retained for backward compatibility checks)
 function hashPassword(password) {
@@ -227,7 +227,23 @@ const configSaveSchema = z.object({
     indicatorMode: z.enum(['prebook', 'booknow']).optional(),
     countdownTargetDate: z.string().nullable().optional().or(z.literal('')),
     maintenanceMode: z.boolean().optional(),
+    comingSoonMode: z.boolean().optional(),
     globalDiscountPercent: z.coerce.number().min(0).max(100).optional()
+  })
+});
+
+const comingSoonPreorderZodSchema = z.object({
+  body: z.object({
+    name: z.string({ required_error: 'Name is required' }).min(1, 'Name is required'),
+    email: z.string({ required_error: 'Email is required' }).min(1, 'Email is required').email('Invalid email format'),
+    phone: z.string({ required_error: 'Phone number is required' })
+      .min(1, 'Phone number is required')
+      .refine((val) => !/[a-zA-Z]/.test(val), { message: 'Phone number can only contain digits' })
+      .refine((val) => {
+        const digits = val.replace(/\D/g, '');
+        const len = (digits.length === 12 && digits.startsWith('91')) ? 10 : (digits.length === 11 && digits.startsWith('0')) ? 10 : digits.length;
+        return len === 10;
+      }, { message: 'Phone number must be exactly 10 digits' })
   })
 });
 
@@ -413,7 +429,7 @@ app.get('/api/config', async (req, res) => {
 });
 
 app.post('/api/config', adminAuth, validate(configSaveSchema), async (req, res) => {
-  const { monthlyDiscountPrice, monthlyStrikePrice, annualDiscountPrice, annualStrikePrice, indicatorMode, countdownTargetDate, maintenanceMode, globalDiscountPercent } = req.body;
+  const { monthlyDiscountPrice, monthlyStrikePrice, annualDiscountPrice, annualStrikePrice, indicatorMode, countdownTargetDate, maintenanceMode, comingSoonMode, globalDiscountPercent } = req.body;
   try {
     let config = await Config.findOne({ key: 'system_settings' });
     if (!config) {
@@ -428,6 +444,7 @@ app.post('/api/config', adminAuth, validate(configSaveSchema), async (req, res) 
       config.countdownTargetDate = countdownTargetDate ? new Date(countdownTargetDate) : null;
     }
     if (maintenanceMode !== undefined) config.maintenanceMode = Boolean(maintenanceMode);
+    if (comingSoonMode !== undefined) config.comingSoonMode = Boolean(comingSoonMode);
     if (globalDiscountPercent !== undefined) config.globalDiscountPercent = Number(globalDiscountPercent);
     
     await config.save();
@@ -852,6 +869,32 @@ app.get('/api/admin/leads', adminAuth, async (req, res) => {
   } catch (err) {
     console.error('Error fetching admin data:', err);
     res.status(500).json({ error: 'Database error fetching leads' });
+  }
+});
+
+// 4.5 Coming Soon Preorders fetch
+app.get('/api/admin/comingsoon-preorders', adminAuth, async (req, res) => {
+  try {
+    const preorders = await ComingSoonPreorder.find({}).sort({ createdAt: -1 });
+    res.json(preorders);
+  } catch (err) {
+    console.error('Error fetching coming soon preorders:', err);
+    res.status(500).json({ error: 'Database error fetching coming soon preorders' });
+  }
+});
+
+// 4.6 Coming Soon Preorder delete
+app.delete('/api/admin/comingsoon-preorders/:id', adminAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const preorder = await ComingSoonPreorder.findByIdAndDelete(id);
+    if (!preorder) {
+      return res.status(404).json({ error: 'Preorder lead not found' });
+    }
+    res.json({ message: 'Preorder deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting coming soon preorder:', err);
+    res.status(500).json({ error: 'Database error deleting preorder' });
   }
 });
 
@@ -1390,7 +1433,7 @@ app.post('/api/prebook/check', async (req, res) => {
   try {
     const existingEmail = await Prebooking.findOne({ email: email.toLowerCase().trim() });
     if (existingEmail) {
-      return res.status(400).json({ error: 'Email already used' });
+      return res.status(400).json({ error: 'This email is already registered' });
     }
     
     // Normalize phone digits
@@ -1404,12 +1447,100 @@ app.post('/api/prebook/check', async (req, res) => {
     
     const existingPhone = await Prebooking.findOne({ phone: finalPhone });
     if (existingPhone) {
-      return res.status(400).json({ error: 'Phone number already used' });
+      return res.status(400).json({ error: 'This phone number is already registered' });
     }
     res.json({ available: true });
   } catch (err) {
     console.error('Error checking duplicates:', err);
     res.status(500).json({ error: 'Server error verifying details' });
+  }
+});
+
+// 9.0.5 Coming Soon Pre-check endpoint
+app.post('/api/comingsoon-preorder/check', async (req, res) => {
+  const { email, phone } = req.body;
+  if (!email || !phone) {
+    return res.status(400).json({ error: 'All details are mandatory to fill' });
+  }
+  try {
+    const existingEmail = await ComingSoonPreorder.findOne({ email: email.toLowerCase().trim() });
+    if (existingEmail) {
+      return res.status(400).json({ error: 'This email is already registered' });
+    }
+    
+    // Normalize phone digits
+    const digits = phone.replace(/\D/g, '');
+    let finalPhone = digits;
+    if (digits.length === 12 && digits.startsWith('91')) {
+      finalPhone = digits.slice(2);
+    } else if (digits.length === 11 && digits.startsWith('0')) {
+      finalPhone = digits.slice(1);
+    }
+    
+    const existingPhone = await ComingSoonPreorder.findOne({ phone: finalPhone });
+    if (existingPhone) {
+      return res.status(400).json({ error: 'This phone number is already registered' });
+    }
+    res.json({ available: true });
+  } catch (err) {
+    console.error('Error checking duplicates:', err);
+    res.status(500).json({ error: 'Server error verifying details' });
+  }
+});
+
+// 9.0.6 Save Coming Soon Preorder
+app.post('/api/comingsoon-preorder', validate(comingSoonPreorderZodSchema), async (req, res) => {
+  const { name, email, phone } = req.body;
+  try {
+    const normalizedEmail = email.toLowerCase().trim();
+    const digits = phone.replace(/\D/g, '');
+    let finalPhone = digits;
+    if (digits.length === 12 && digits.startsWith('91')) {
+      finalPhone = digits.slice(2);
+    } else if (digits.length === 11 && digits.startsWith('0')) {
+      finalPhone = digits.slice(1);
+    }
+
+    const existingEmail = await ComingSoonPreorder.findOne({ email: normalizedEmail });
+    if (existingEmail) {
+      return res.status(400).json({ error: 'This email is already registered' });
+    }
+    const existingPhone = await ComingSoonPreorder.findOne({ phone: finalPhone });
+    if (existingPhone) {
+      return res.status(400).json({ error: 'This phone number is already registered' });
+    }
+
+    const preorder = new ComingSoonPreorder({
+      name: name.trim(),
+      email: normalizedEmail,
+      phone: finalPhone
+    });
+    await preorder.save();
+    
+    // Asynchronously send coming-soon preorder confirmation email
+    const subject = `Your Ciper AI Platform Pre-Order is Confirmed! 🚀`;
+    const text = `Hello ${name},\n\nThank you for pre-ordering access to the Ciper AI Platform! We have successfully secured your early waitlist spot.\n\nWe will contact you via email and WhatsApp (${phone}) as soon as the platform goes live.\n\nBest regards,\nCiper AI Team`;
+    const html = `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; background-color: #0b0c10; color: #c5c6c7; border: 1px solid #1f2833; border-radius: 12px;">
+        <h2 style="color: #00D4AA; border-bottom: 1px solid #1f2833; padding-bottom: 12px; margin-top: 0;">Pre-Order Confirmed! 🚀</h2>
+        <p>Hello <strong>${name}</strong>,</p>
+        <p>Thank you for pre-ordering early access to the <strong>Ciper AI Platform</strong>!</p>
+        <p>We have successfully secured your spot on the early waitlist. We will notify you via email and reach out to you on WhatsApp at <strong>${phone}</strong> as soon as the platform goes live.</p>
+        <br/>
+        <p style="color: #00D4AA; font-weight: bold; margin-bottom: 5px;">Thank you,</p>
+        <p style="color: #45f3ff; font-weight: bold; margin-top: 0;">Ciper AI Team</p>
+      </div>
+    `;
+    sendMailHelper(normalizedEmail, subject, text, html, name)
+      .catch(err => console.error('[MAIL ERROR] Failed to send coming soon confirmation email:', err.message));
+
+    res.status(201).json({ message: 'Pre-order successful!', id: preorder._id });
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(400).json({ error: 'This email is already registered' });
+    }
+    console.error('Error saving coming soon pre-order:', err);
+    res.status(500).json({ error: 'Database error occurred saving pre-order' });
   }
 });
 
@@ -1425,7 +1556,7 @@ app.post('/api/prebook', validate(prebookSchema), async (req, res) => {
     // Check if email already used
     const existingEmail = await Prebooking.findOne({ email: email.toLowerCase().trim() });
     if (existingEmail) {
-      return res.status(400).json({ error: 'Email already used' });
+      return res.status(400).json({ error: 'This email is already registered' });
     }
 
     // Normalize phone digits
@@ -1440,7 +1571,7 @@ app.post('/api/prebook', validate(prebookSchema), async (req, res) => {
     // Check if phone already exists
     const existingPhone = await Prebooking.findOne({ phone: finalPhone });
     if (existingPhone) {
-      return res.status(400).json({ error: 'Phone number already used' });
+      return res.status(400).json({ error: 'This phone number is already registered' });
     }
 
     const selectedTitle = indicatorTitle || 'General';
